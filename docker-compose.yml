@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  orbis-bot:
+    build: .
+    container_name: orbis-discord-bot
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    depends_on:
+      - orbis-db
+
+  orbis-db:
+    image: postgres:15
+    container_name: orbis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: orbis
+      POSTGRES_USER: orbisuser
+      POSTGRES_PASSWORD: orbispass
+    volumes:
+      - orbis-db-data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+
+volumes:
+  orbis-db-data:
