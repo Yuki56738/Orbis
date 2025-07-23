@@ -1,58 +1,86 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import aiosqlite
-
-DB_PATH = "./orbis.db"
+import asyncpg
 
 class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.db: asyncpg.Pool = None
+
+    async def cog_load(self):
+        self.db = self.bot.get_cog("DBHandler").pool
+        await self.create_tables()
+
+    async def create_tables(self):
+        async with self.db.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS tickets (
+                    guild_id BIGINT,
+                    user_id BIGINT,
+                    channel_id BIGINT PRIMARY KEY
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    guild_id BIGINT,
+                    key TEXT,
+                    value TEXT,
+                    PRIMARY KEY (guild_id, key)
+                )
+            """)
 
     async def get_open_ticket(self, guild_id: int, user_id: int):
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute("SELECT channel_id FROM tickets WHERE guild_id=? AND user_id=?", (guild_id, user_id)) as cursor:
-                row = await cursor.fetchone()
-                return row[0] if row else None
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow("SELECT channel_id FROM tickets WHERE guild_id = $1 AND user_id = $2", guild_id, user_id)
+            return row["channel_id"] if row else None
 
     async def create_ticket_record(self, guild_id: int, user_id: int, channel_id: int):
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("INSERT INTO tickets (guild_id, user_id, channel_id) VALUES (?, ?, ?)", (guild_id, user_id, channel_id))
-            await db.commit()
+        async with self.db.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO tickets (guild_id, user_id, channel_id) VALUES ($1, $2, $3)",
+                guild_id, user_id, channel_id
+            )
 
     async def delete_ticket_record(self, guild_id: int, user_id: int):
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("DELETE FROM tickets WHERE guild_id=? AND user_id=?", (guild_id, user_id))
-            await db.commit()
+        async with self.db.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM tickets WHERE guild_id = $1 AND user_id = $2",
+                guild_id, user_id
+            )
 
     @app_commands.command(name="ticket_create", description="チケット用テキストチャンネルを作成します。")
     async def ticket_create(self, interaction: discord.Interaction):
         user = interaction.user
         guild = interaction.guild
-        # 既存チケットチェック
+
         existing_channel_id = await self.get_open_ticket(guild.id, user.id)
         if existing_channel_id:
             await interaction.response.send_message("❌ あなたは既にチケットを開いています。", ephemeral=True)
             return
-        # カテゴリ取得(DB設定想定)
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute("SELECT value FROM settings_{} WHERE key='ticket_category_id'".format(guild.id)) as cursor:
-                row = await cursor.fetchone()
-                if not row:
-                    await interaction.response.send_message("⚠️ チケット用カテゴリが設定されていません。管理者に問い合わせてください。", ephemeral=True)
-                    return
-                category_id = int(row[0])
+
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT value FROM settings WHERE guild_id = $1 AND key = 'ticket_category_id'",
+                guild.id
+            )
+            if not row:
+                await interaction.response.send_message("⚠️ チケット用カテゴリが設定されていません。管理者に問い合わせてください。", ephemeral=True)
+                return
+            category_id = int(row["value"])
+
         category = guild.get_channel(category_id)
         if not category or not isinstance(category, discord.CategoryChannel):
             await interaction.response.send_message("⚠️ チケット用カテゴリが見つかりません。", ephemeral=True)
             return
-        # チャンネル作成
+
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             user: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
         channel = await guild.create_text_channel(f"ticket-{user.display_name}", category=category, overwrites=overwrites, reason="Ticket created")
         await self.create_ticket_record(guild.id, user.id, channel.id)
+
         await interaction.response.send_message(f"✅ チケットチャンネル {channel.mention} を作成しました。", ephemeral=True)
 
     @app_commands.command(name="ticket_close", description="自分のチケットを閉じて削除します。")
@@ -60,31 +88,23 @@ class Tickets(commands.Cog):
         user = interaction.user
         guild = interaction.guild
         channel = interaction.channel
-        # チケットDB確認
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute("SELECT user_id FROM tickets WHERE guild_id=? AND channel_id=?", (guild.id, channel.id)) as cursor:
-                row = await cursor.fetchone()
-                if not row:
-                    await interaction.response.send_message("❌ このチャンネルはチケットチャンネルではありません。", ephemeral=True)
-                    return
-                ticket_user_id = row[0]
-        if user.id != ticket_user_id:
-            await interaction.response.send_message("🚫 あなたはこのチケットの所有者ではありません。", ephemeral=True)
-            return
-        # 削除処理
+
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT user_id FROM tickets WHERE guild_id = $1 AND channel_id = $2",
+                guild.id, channel.id
+            )
+            if not row:
+                await interaction.response.send_message("❌ このチャンネルはチケットチャンネルではありません。", ephemeral=True)
+                return
+
+            ticket_user_id = row["user_id"]
+            if user.id != ticket_user_id:
+                await interaction.response.send_message("🚫 あなたはこのチケットの所有者ではありません。", ephemeral=True)
+                return
+
         await self.delete_ticket_record(guild.id, user.id)
         await channel.delete(reason="Ticket closed by user")
-        # 返信はできないので無音
 
 async def setup(bot):
-    # チケットDBテーブル作成
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS tickets (
-                guild_id INTEGER,
-                user_id INTEGER,
-                channel_id INTEGER PRIMARY KEY
-            )
-        """)
-        await db.commit()
     await bot.add_cog(Tickets(bot))

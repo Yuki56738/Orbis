@@ -1,9 +1,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import aiosqlite
-
-DB_PATH = "./orbis.db"
 
 class VCRecruit(commands.Cog):
     def __init__(self, bot):
@@ -46,11 +43,13 @@ class VCRecruit(commands.Cog):
         if not role_id or not channel_id:
             await interaction.response.send_message("⚠️ 募集用ロールまたは告知用チャンネルが設定されていません。", ephemeral=True)
             return
+
         role = interaction.guild.get_role(int(role_id))
         channel = interaction.guild.get_channel(int(channel_id))
         if not role or not channel:
             await interaction.response.send_message("⚠️ 設定されたロールまたはチャンネルが見つかりません。", ephemeral=True)
             return
+
         embed = discord.Embed(title="🎤 VC募集", description=message, color=discord.Color.green())
         embed.set_footer(text=f"募集者: {interaction.user.display_name}")
         await channel.send(content=role.mention, embed=embed)
