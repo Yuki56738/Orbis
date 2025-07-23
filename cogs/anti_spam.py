@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from collections import defaultdict
-import asyncio
 
 class AntiSpam(commands.Cog):
     def __init__(self, bot):
@@ -25,8 +24,12 @@ class AntiSpam(commands.Cog):
         now = discord.utils.utcnow().timestamp()
         self.msg_cache[message.author.id].append(now)
 
-        max_count = int(await self.bot.get_cog("DBHandler").get_setting(message.guild.id, "spam_limit") or 5)
-        timeout_duration = int(await self.bot.get_cog("DBHandler").get_setting(message.guild.id, "spam_timeout") or 3600)
+        db = self.bot.get_cog("DBHandler")
+        max_count_str = await db.get_setting(message.guild.id, "spam_limit") if db else None
+        timeout_str = await db.get_setting(message.guild.id, "spam_timeout") if db else None
+
+        max_count = int(max_count_str) if max_count_str else 5
+        timeout_duration = int(timeout_str) if timeout_str else 3600
 
         if len(self.msg_cache[message.author.id]) >= max_count:
             try:
@@ -39,13 +42,21 @@ class AntiSpam(commands.Cog):
 
     @app_commands.command(name="spam_set_limit", description="スパム検知の投稿上限を設定します（秒間）")
     async def spam_set_limit(self, interaction: discord.Interaction, count: int):
-        await self.bot.get_cog("DBHandler").set_setting(interaction.guild.id, "spam_limit", str(count))
-        await interaction.response.send_message(f"✅ 秒間メッセージ上限を `{count}` に設定しました。")
+        db = self.bot.get_cog("DBHandler")
+        if db:
+            await db.set_setting(interaction.guild.id, "spam_limit", str(count))
+            await interaction.response.send_message(f"✅ 秒間メッセージ上限を `{count}` に設定しました。")
+        else:
+            await interaction.response.send_message("❌ DB Cog が見つかりません。", ephemeral=True)
 
     @app_commands.command(name="spam_set_timeout", description="スパム検知時のタイムアウト秒数を設定します")
     async def spam_set_timeout(self, interaction: discord.Interaction, seconds: int):
-        await self.bot.get_cog("DBHandler").set_setting(interaction.guild.id, "spam_timeout", str(seconds))
-        await interaction.response.send_message(f"✅ スパムタイムアウト時間を `{seconds}` 秒に設定しました。")
+        db = self.bot.get_cog("DBHandler")
+        if db:
+            await db.set_setting(interaction.guild.id, "spam_timeout", str(seconds))
+            await interaction.response.send_message(f"✅ スパムタイムアウト時間を `{seconds}` 秒に設定しました。")
+        else:
+            await interaction.response.send_message("❌ DB Cog が見つかりません。", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AntiSpam(bot))

@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button
+import json
 
 class Admin(commands.Cog):
     def __init__(self, bot):
@@ -93,7 +94,6 @@ class AdminPanel(commands.Cog):
             await interaction.response.send_message("🚫 ロール管理権限がありません。", ephemeral=True)
             return
 
-        # ロールID抽出
         role_ids = []
         for r in roles.split():
             if r.startswith("<@&") and r.endswith(">"):
@@ -103,14 +103,11 @@ class AdminPanel(commands.Cog):
                 await interaction.response.send_message(f"❌ ロール指定の形式が不正です: `{r}`", ephemeral=True)
                 return
 
-        # DB保存
-        db: commands.Cog | None = self.bot.get_cog("DBHandler")
+        db = self.bot.get_cog("DBHandler")
         if db is None:
             await interaction.response.send_message("❌ DB Cog が見つかりません。", ephemeral=True)
             return
 
-        # JSON文字列化
-        import json
         roles_json = json.dumps(role_ids)
         await db.set_setting(interaction.guild.id, f"rolepanel_{name}", roles_json)
         await interaction.response.send_message(f"✅ ロールパネル `{name}` を設定しました。（送信は `/rolepanel_send` で）", ephemeral=True)
@@ -119,16 +116,16 @@ class AdminPanel(commands.Cog):
     @app_commands.command(name="rolepanel_send", description="ロールパネルを送信します。")
     @app_commands.describe(name="パネル名", channel="送信先チャンネル（空欄で現在のチャンネル）")
     async def rolepanel_send(self, interaction: discord.Interaction, name: str, channel: discord.TextChannel = None):
-        db: commands.Cog | None = self.bot.get_cog("DBHandler")
+        db = self.bot.get_cog("DBHandler")
         if db is None:
             await interaction.response.send_message("❌ DB Cog が見つかりません。", ephemeral=True)
             return
 
-        import json
         roles_json = await db.get_setting(interaction.guild.id, f"rolepanel_{name}")
         if roles_json is None:
             await interaction.response.send_message("❌ その名前のパネルは存在しません。", ephemeral=True)
             return
+
         role_ids = json.loads(roles_json)
         role_objs = [interaction.guild.get_role(rid) for rid in role_ids]
         view = RoleSelectView(role_objs)
@@ -144,7 +141,7 @@ class AdminPanel(commands.Cog):
             await interaction.response.send_message("🚫 管理者のみが設定できます。", ephemeral=True)
             return
 
-        db: commands.Cog | None = self.bot.get_cog("DBHandler")
+        db = self.bot.get_cog("DBHandler")
         if db is None:
             await interaction.response.send_message("❌ DB Cog が見つかりません。", ephemeral=True)
             return
@@ -156,7 +153,7 @@ class AdminPanel(commands.Cog):
     @app_commands.command(name="report", description="ユーザーを通報します。")
     @app_commands.describe(target="通報対象", reason="通報の理由")
     async def report(self, interaction: discord.Interaction, target: discord.Member, reason: str):
-        db: commands.Cog | None = self.bot.get_cog("DBHandler")
+        db = self.bot.get_cog("DBHandler")
         if db is None:
             await interaction.response.send_message("❌ DB Cog が見つかりません。", ephemeral=True)
             return
