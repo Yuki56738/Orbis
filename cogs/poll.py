@@ -1,12 +1,9 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-import aiosqlite
-import asyncio
+import asyncpg
 import json
 import datetime
-
-DB_PATH = "./orbis.db"
 
 class PollButton(discord.ui.Button):
     def __init__(self, label: str, poll_id: int, option_index: int):
@@ -16,85 +13,95 @@ class PollButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         cog: Poll = interaction.client.get_cog("Poll")
-        if not cog:
-            await interaction.response.send_message("エラー: Cogが見つかりません。", ephemeral=True)
-            return
-        await cog.register_vote(interaction, self.poll_id, self.option_index)
+        if cog:
+            await cog.register_vote(interaction, self.poll_id, self.option_index)
 
 class PollView(discord.ui.View):
     def __init__(self, poll_id: int, options: list[str], timeout: int):
         super().__init__(timeout=timeout)
-        self.poll_id = poll_id
         for i, option in enumerate(options):
             self.add_item(PollButton(option, poll_id, i))
 
 class Poll(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_polls = {}  # poll_id: task
+        self.db: asyncpg.Pool = None
         self.poll_timeout_check.start()
+
+    async def cog_load(self):
+        self.db = self.bot.get_cog("DBHandler").pool  # DBHandlerのpoolを使う
+        await self.create_tables()
 
     def cog_unload(self):
         self.poll_timeout_check.cancel()
 
+    async def create_tables(self):
+        async with self.db.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS polls (
+                    poll_id SERIAL PRIMARY KEY,
+                    guild_id BIGINT,
+                    channel_id BIGINT,
+                    message_id BIGINT,
+                    creator_id BIGINT,
+                    question TEXT,
+                    options JSONB,
+                    expires_at BIGINT,
+                    ended BOOLEAN DEFAULT FALSE
+                )
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS votes (
+                    vote_id SERIAL PRIMARY KEY,
+                    poll_id INTEGER REFERENCES polls(poll_id) ON DELETE CASCADE,
+                    user_id BIGINT,
+                    option_index INTEGER,
+                    UNIQUE(poll_id, user_id)
+                )
+            """)
+
     @tasks.loop(seconds=10)
     async def poll_timeout_check(self):
-        # 定期的に期限切れポールを確認し結果送信
-        async with aiosqlite.connect(DB_PATH) as db:
-            now_ts = int(datetime.datetime.utcnow().timestamp())
-            async with db.execute("SELECT poll_id, creator_id FROM polls WHERE ended = 0 AND expires_at <= ?", (now_ts,)) as cursor:
-                rows = await cursor.fetchall()
-                for poll_id, creator_id in rows:
-                    await self.finish_poll(poll_id, creator_id)
+        now_ts = int(datetime.datetime.utcnow().timestamp())
+        async with self.db.acquire() as conn:
+            rows = await conn.fetch("SELECT poll_id, creator_id, options FROM polls WHERE ended = FALSE AND expires_at <= $1", now_ts)
+            for row in rows:
+                await self.finish_poll(conn, row["poll_id"], row["creator_id"], row["options"])
 
-    async def finish_poll(self, poll_id: int, creator_id: int):
-        async with aiosqlite.connect(DB_PATH) as db:
-            # 投票結果取得
-            async with db.execute("SELECT option_index, COUNT(*) FROM votes WHERE poll_id = ? GROUP BY option_index", (poll_id,)) as cursor:
-                vote_counts = await cursor.fetchall()
-            # オプション数取得
-            async with db.execute("SELECT options FROM polls WHERE poll_id = ?", (poll_id,)) as cursor:
-                row = await cursor.fetchone()
-                if not row:
-                    return
-                options = json.loads(row[0])
-            # 結果集計
-            counts = {idx: 0 for idx in range(len(options))}
-            for option_index, count in vote_counts:
-                counts[option_index] = count
+    async def finish_poll(self, conn, poll_id: int, creator_id: int, options_json: str):
+        options = json.loads(options_json)
+        counts = {i: 0 for i in range(len(options))}
+        vote_rows = await conn.fetch("SELECT option_index, COUNT(*) AS cnt FROM votes WHERE poll_id = $1 GROUP BY option_index", poll_id)
+        for row in vote_rows:
+            counts[row["option_index"]] = row["cnt"]
 
-            total_votes = sum(counts.values())
-            # メッセージ生成
-            msg = f"📊 投票結果（ID: {poll_id}）\n"
-            for idx, option in enumerate(options):
-                msg += f"**{option}** ： {counts[idx]}票\n"
-            msg += f"合計投票数：{total_votes}票"
+        total_votes = sum(counts.values())
+        result = f"📊 投票結果（ID: {poll_id}）\n"
+        for i, opt in enumerate(options):
+            result += f"**{opt}** ： {counts[i]}票\n"
+        result += f"合計投票数：{total_votes}票"
 
-            # 送信
-            creator = self.bot.get_user(creator_id)
-            if creator:
-                try:
-                    await creator.send(msg)
-                except:
-                    # DM拒否などで送れなかった場合は無視
-                    pass
+        creator = self.bot.get_user(creator_id)
+        if creator:
+            try:
+                await creator.send(result)
+            except:
+                pass
 
-            # pollsテーブルのendedを立てる
-            await db.execute("UPDATE polls SET ended = 1 WHERE poll_id = ?", (poll_id,))
-            await db.commit()
+        await conn.execute("UPDATE polls SET ended = TRUE WHERE poll_id = $1", poll_id)
 
     async def register_vote(self, interaction: discord.Interaction, poll_id: int, option_index: int):
         user_id = interaction.user.id
-        async with aiosqlite.connect(DB_PATH) as db:
-            # 既に投票しているかチェック
-            async with db.execute("SELECT 1 FROM votes WHERE poll_id = ? AND user_id = ?", (poll_id, user_id)) as cursor:
-                exists = await cursor.fetchone()
-                if exists:
-                    await interaction.response.send_message("❌ あなたはすでに投票済みです。", ephemeral=True)
-                    return
-            # 投票記録追加
-            await db.execute("INSERT INTO votes (poll_id, user_id, option_index) VALUES (?, ?, ?)", (poll_id, user_id, option_index))
-            await db.commit()
+        async with self.db.acquire() as conn:
+            exists = await conn.fetchval("SELECT 1 FROM votes WHERE poll_id = $1 AND user_id = $2", poll_id, user_id)
+            if exists:
+                await interaction.response.send_message("❌ あなたはすでに投票済みです。", ephemeral=True)
+                return
+
+            await conn.execute(
+                "INSERT INTO votes (poll_id, user_id, option_index) VALUES ($1, $2, $3)",
+                poll_id, user_id, option_index
+            )
             await interaction.response.send_message(f"✅ `{option_index + 1}`番目の選択肢に投票しました。", ephemeral=True)
 
     @app_commands.command(name="poll", description="投票を開始します。")
@@ -105,47 +112,23 @@ class Poll(commands.Cog):
     )
     async def poll(self, interaction: discord.Interaction, question: str, options: str, duration: int = 60):
         option_list = [opt.strip() for opt in options.split(",") if opt.strip()]
-        if len(option_list) < 2 or len(option_list) > 10:
+        if not (2 <= len(option_list) <= 10):
             await interaction.response.send_message("❌ 選択肢は2〜10個で入力してください。", ephemeral=True)
             return
-        if duration < 10 or duration > 86400:
-            await interaction.response.send_message("❌ 投票時間は10秒以上86400秒（24時間）以内にしてください。", ephemeral=True)
+        if not (10 <= duration <= 86400):
+            await interaction.response.send_message("❌ 投票時間は10〜86400秒（24時間）以内で指定してください。", ephemeral=True)
             return
 
-        async with aiosqlite.connect(DB_PATH) as db:
-            # pollsテーブル作成
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS polls (
-                    poll_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    guild_id INTEGER,
-                    channel_id INTEGER,
-                    message_id INTEGER,
-                    creator_id INTEGER,
-                    question TEXT,
-                    options TEXT,
-                    expires_at INTEGER,
-                    ended INTEGER DEFAULT 0
-                )
-            """)
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS votes (
-                    vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    poll_id INTEGER,
-                    user_id INTEGER,
-                    option_index INTEGER
-                )
-            """)
-            await db.commit()
+        expires_at = int((datetime.datetime.utcnow() + datetime.timedelta(seconds=duration)).timestamp())
 
-            expires_at = int((datetime.datetime.utcnow() + datetime.timedelta(seconds=duration)).timestamp())
-
-            # 投票情報登録
-            cur = await db.execute("""
+        async with self.db.acquire() as conn:
+            row = await conn.fetchrow("""
                 INSERT INTO polls (guild_id, channel_id, creator_id, question, options, expires_at, ended)
-                VALUES (?, ?, ?, ?, ?, ?, 0)
-            """, (interaction.guild.id, interaction.channel.id, interaction.user.id, question, json.dumps(option_list), expires_at))
-            poll_id = cur.lastrowid
-            await db.commit()
+                VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+                RETURNING poll_id
+            """, interaction.guild.id, interaction.channel.id, interaction.user.id, question, json.dumps(option_list), expires_at)
+
+            poll_id = row["poll_id"]
 
         embed = discord.Embed(title="📊 投票開始！", description=question, color=discord.Color.blurple())
         for i, opt in enumerate(option_list):
@@ -154,12 +137,11 @@ class Poll(commands.Cog):
 
         view = PollView(poll_id, option_list, timeout=duration)
         msg = await interaction.channel.send(embed=embed, view=view)
-        await interaction.response.send_message(f"✅ 投票を開始しました。", ephemeral=True)
+        await interaction.response.send_message("✅ 投票を開始しました。", ephemeral=True)
 
-        # 投票メッセージのmessage_id保存
-        async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute("UPDATE polls SET message_id = ? WHERE poll_id = ?", (msg.id, poll_id))
-            await db.commit()
+        # message_id を保存
+        async with self.db.acquire() as conn:
+            await conn.execute("UPDATE polls SET message_id = $1 WHERE poll_id = $2", msg.id, poll_id)
 
 async def setup(bot):
     await bot.add_cog(Poll(bot))
