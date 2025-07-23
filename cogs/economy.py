@@ -1,193 +1,140 @@
-import asyncpg
 import random
 import datetime
 from discord.ext import commands
 from discord import app_commands, Interaction, Member, Message
 import discord
 
-DB_CONFIG = {
-    "user": "orbisuser",
-    "password": "orbispass",
-    "database": "orbis",
-    "host": "orbis-db",
-    "port": 5432,
-}
+from services import economy_api
 
 class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.pool = None
 
-    async def cog_load(self):
-        self.pool = await asyncpg.create_pool(**DB_CONFIG)
+    def get_shared_id(self, user: discord.User):
+        return str(user.id)
 
-    async def get_setting(self, user_id: int, key: str, default=None, cast_type=int):
-        query = "SELECT value FROM user_settings WHERE user_id = $1 AND key = $2"
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(query, user_id, key)
-            if row:
-                try:
-                    return cast_type(row["value"])
-                except:
-                    return default
-            return default
+    async def ensure_user(self, shared_id: str):
+        user = await economy_api.get_user(shared_id)
+        if user is None:
+            return await economy_api.create_user(shared_id)
+        return user
 
-    async def set_setting(self, user_id: int, key: str, value: str | int):
-        query = """
-            INSERT INTO user_settings (user_id, key, value)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, key)
-            DO UPDATE SET value = EXCLUDED.value
-        """
-        async with self.pool.acquire() as conn:
-            await conn.execute(query, user_id, key, str(value))
+    @app_commands.command(name="balance", description="あなたの所持金を表示します。")
+    async def balance(self, interaction: Interaction):
+        shared_id = self.get_shared_id(interaction.user)
+        user = await self.ensure_user(shared_id)
+        await interaction.response.send_message(
+            f"💰 {interaction.user.mention} の所持金は {user['balance']} 円です。現在のレベルは Lv.{user['level']} です。"
+        )
 
-    # ------- Balance Management -------
+    @app_commands.command(name="work", description="働いてお金を稼ぎます。（1時間に1回）")
+    async def work(self, interaction: Interaction):
+        shared_id = self.get_shared_id(interaction.user)
+        user = await self.ensure_user(shared_id)
 
-    async def get_balance(self, user_id: int) -> int:
-        return await self.get_setting(user_id, "balance", 0)
+        now = datetime.datetime.utcnow()
+        last_str = user.get("last_work_time")
+        if last_str:
+            last_time = datetime.datetime.fromisoformat(last_str)
+            diff = (now - last_time).total_seconds()
+            if diff < 3600:
+                minutes, seconds = divmod(int(3600 - diff), 60)
+                return await interaction.response.send_message(
+                    f"⏳ 次の /work まで {minutes}分{seconds}秒 残っています。", ephemeral=True
+                )
 
-    async def set_balance(self, user_id: int, amount: int):
-        await self.set_setting(user_id, "balance", amount)
-        await self.recalculate_level(user_id)
+        activity = user.get("activity_score", 100)
+        level = user.get("level", 1)
+        income = random.randint(int(activity * level * 1.5 * 10), int(activity * level * 2.0 * 10))
 
-    async def add_balance(self, user_id: int, amount: int) -> bool:
-        current = await self.get_balance(user_id)
-        new_amount = current + amount
-        if new_amount < 0:
-            return False
-        await self.set_balance(user_id, new_amount)
-        return True
+        await economy_api.update_user(shared_id, {
+            "balance": user["balance"] + income,
+            "last_work_time": now.isoformat()
+        })
 
-    async def subtract_balance(self, user_id: int, amount: int) -> bool:
-        current = await self.get_balance(user_id)
-        if current < amount:
-            return False
-        await self.set_balance(user_id, current - amount)
-        return True
+        await interaction.response.send_message(f"💼 お疲れさまです！{income} 円を獲得しました。")
 
-    # ------- Activity & Level -------
+    @app_commands.command(name="pay", description="他のユーザーにお金を送ります。")
+    @app_commands.describe(target="送金相手", amount="送金金額")
+    async def pay(self, interaction: Interaction, target: Member, amount: int):
+        if amount <= 0 or target.bot or target.id == interaction.user.id:
+            return await interaction.response.send_message("❌ 無効な送金リクエストです。", ephemeral=True)
 
-    async def get_activity(self, user_id: int) -> float:
-        return await self.get_setting(user_id, "activity_score", 100, float)
+        sender_id = self.get_shared_id(interaction.user)
+        recipient_id = self.get_shared_id(target)
 
-    async def set_activity(self, user_id: int, value: float):
-        await self.set_setting(user_id, "activity_score", round(value, 2))
-        await self.recalculate_level(user_id)
+        sender = await self.ensure_user(sender_id)
+        recipient = await self.ensure_user(recipient_id)
 
-    async def recalculate_level(self, user_id: int):
-        activity = await self.get_activity(user_id)
-        balance = await self.get_balance(user_id)
-        total = activity + balance
-        level = 1
-        threshold = 500
-        increment = 150
-        while total >= threshold:
-            level += 1
-            threshold += increment
-            increment += 150  # 累積的に増加
-        await self.set_setting(user_id, "level", level)
+        if sender["balance"] < amount:
+            return await interaction.response.send_message("❌ 残高不足です。", ephemeral=True)
 
-    async def get_level(self, user_id: int) -> int:
-        return await self.get_setting(user_id, "level", 1)
+        await economy_api.update_user(sender_id, {"balance": sender["balance"] - amount})
+        await economy_api.update_user(recipient_id, {"balance": recipient["balance"] + amount})
 
-    # ------- Message Rewarding -------
+        await interaction.response.send_message(
+            f"✅ {interaction.user.mention} → {target.mention} に {amount} 円を送金しました。"
+        )
+
+    @app_commands.command(name="setbalance", description="管理者用：ユーザーの所持金を設定します。")
+    @app_commands.describe(user="対象ユーザー", amount="設定金額")
+    async def setbalance(self, interaction: Interaction, user: Member, amount: int):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("🚫 管理者専用コマンドです。", ephemeral=True)
+
+        shared_id = self.get_shared_id(user)
+        await self.ensure_user(shared_id)
+
+        await economy_api.update_user(shared_id, {"balance": amount})
+        await interaction.response.send_message(
+            f"✅ {user.mention} の所持金を {amount} 円に設定しました。"
+        )
 
     @commands.Cog.listener()
     async def on_message(self, message: Message):
         if message.author.bot or len(message.content.strip()) < 5:
             return
 
-        user_id = message.author.id
-        today = datetime.date.today()
-        last_date_str = await self.get_setting(user_id, "last_active_date", None, str)
+        shared_id = self.get_shared_id(message.author)
+        user = await self.ensure_user(shared_id)
 
-        # 活発度の更新
+        today = datetime.date.today()
+        last_date_str = user.get("last_active_date")
         reset = False
+
         if last_date_str:
             last_date = datetime.date.fromisoformat(last_date_str)
-            if (today - last_date).days >= 2:
-                await self.set_activity(user_id, 100)
-                reset = True
-        await self.set_setting(user_id, "last_active_date", today.isoformat())
+            reset = (today - last_date).days >= 2
+            activity = 100.0 if reset else user.get("activity_score", 100.0)
+        else:
+            activity = user.get("activity_score", 100.0)
 
-        # 活発度加算
-        activity = await self.get_activity(user_id)
         activity += round(random.uniform(0.5, 1.0), 2)
-        await self.set_activity(user_id, activity)
 
-        # 報酬確率チェック
+        # レベル再計算
+        balance = user.get("balance", 0)
+        total = balance + activity
+        level = 1
+        threshold, increment = 500, 150
+        while total >= threshold:
+            level += 1
+            threshold += increment
+            increment += 150
+
+        # メッセージ報酬
         if random.randint(1, 10) <= 3:
-            level = await self.get_level(user_id)
-            base_income = int(activity * level * 10)
+            income = int(activity * level * 10)
+            if reset or not last_date_str:
+                income *= 10
+            user["balance"] += income
 
-            # ログインボーナス（当日初投稿）
-            if reset or (not last_date_str):
-                base_income *= 10
+        await economy_api.update_user(shared_id, {
+            "activity_score": round(activity, 2),
+            "last_active_date": today.isoformat(),
+            "balance": user["balance"],
+            "level": level
+        })
 
-            await self.add_balance(user_id, base_income)
-
-    # ------- /balance -------
-
-    @app_commands.command(name="balance", description="あなたの所持金を表示します。")
-    async def balance(self, interaction: Interaction):
-        bal = await self.get_balance(interaction.user.id)
-        level = await self.get_level(interaction.user.id)
-        await interaction.response.send_message(
-            f"💰 {interaction.user.mention} の所持金は {bal} 円です。現在のレベルは Lv.{level} です。")
-
-    # ------- /pay -------
-
-    @app_commands.command(name="pay", description="他のユーザーにお金を送ります。")
-    @app_commands.describe(target="送金相手", amount="送金金額")
-    async def pay(self, interaction: Interaction, target: Member, amount: int):
-        if amount <= 0:
-            return await interaction.response.send_message("❌ 金額は1以上にしてください。", ephemeral=True)
-        if target.bot or target.id == interaction.user.id:
-            return await interaction.response.send_message("❌ 無効な相手です。", ephemeral=True)
-        if not await self.subtract_balance(interaction.user.id, amount):
-            return await interaction.response.send_message("❌ 残高不足です。", ephemeral=True)
-        await self.add_balance(target.id, amount)
-        await interaction.response.send_message(f"✅ {interaction.user.mention} → {target.mention} に {amount} 円を送金しました。")
-
-    # ------- /setbalance (管理者のみ) -------
-
-    @app_commands.command(name="setbalance", description="管理者用：ユーザーの所持金を設定します。")
-    @app_commands.describe(user="対象ユーザー", amount="設定金額")
-    async def setbalance(self, interaction: Interaction, user: Member, amount: int):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("🚫 管理者専用です。", ephemeral=True)
-        if amount < 0:
-            return await interaction.response.send_message("❌ 0以上の金額を入力してください。", ephemeral=True)
-        await self.set_balance(user.id, amount)
-        await interaction.response.send_message(f"✅ {user.mention} の所持金を {amount} 円に設定しました。")
-
-    # ------- /work -------
-
-    @app_commands.command(name="work", description="働いてお金を稼ぎます。（1時間に1回）")
-    async def work(self, interaction: Interaction):
-        user_id = interaction.user.id
-        now = datetime.datetime.utcnow()
-        last_str = await self.get_setting(user_id, "last_work_time", None, str)
-
-        if last_str:
-            last_time = datetime.datetime.fromisoformat(last_str)
-            if (now - last_time).total_seconds() < 3600:
-                remaining = int(3600 - (now - last_time).total_seconds())
-                minutes, seconds = divmod(remaining, 60)
-                return await interaction.response.send_message(
-                    f"⏳ 次の /work まで {minutes}分{seconds}秒 残っています。", ephemeral=True
-                )
-
-        activity = await self.get_activity(user_id)
-        level = await self.get_level(user_id)
-        base = int(activity * level * 10)
-        income = random.randint(int(base * 1.5), int(base * 2.0))
-
-        await self.add_balance(user_id, income)
-        await self.set_setting(user_id, "last_work_time", now.isoformat())
-
-        await interaction.response.send_message(f"💼 お疲れさまです！{income} 円を獲得しました。")
-
+# setup
 async def setup(bot):
     await bot.add_cog(Economy(bot))
