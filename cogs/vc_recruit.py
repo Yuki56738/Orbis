@@ -14,7 +14,7 @@ class VCRecruit(commands.Cog):
         if cog:
             return await cog.get_setting(guild_id, key)
         return None
-
+    
     async def set_guild_setting(self, guild_id: int, key: str, value: str):
         cog = self.bot.get_cog("DBHandler")
         if cog:
