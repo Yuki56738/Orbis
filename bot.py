@@ -34,6 +34,16 @@ async def on_ready():
     except Exception as e:
         print(f"[同期エラー] {e}")
 
+# サーバーのカスタム設定を自動削除する
+
+@bot.event
+async def on_guild_remove(guild: discord.Guild):
+    db_handler = bot.get_cog("DBHandler")
+    if db_handler:
+        await db_handler.drop_guild_table(guild.id)
+        print(f"Guild {guild.id} の設定テーブルを削除しました。")
+
+
 # エラー処理（グローバル）
 @bot.event
 async def on_command_error(ctx, error):

@@ -46,5 +46,12 @@ class DBHandler(commands.Cog):
             await db.execute(f"DELETE FROM {table_name} WHERE key = ?", (key,))
             await db.commit()
 
+    # 新規追加：guild専用設定テーブルを丸ごと削除
+    async def drop_guild_table(self, guild_id: int):
+        table_name = f"settings_{guild_id}"
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(f"DROP TABLE IF EXISTS {table_name}")
+            await db.commit()
+
 async def setup(bot):
     await bot.add_cog(DBHandler(bot))
