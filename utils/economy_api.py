@@ -2,7 +2,7 @@ import aiohttp
 import asyncio
 from typing import Optional
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "https://localhost:8000"
 
 class EconomyAPI:
     def __init__(self, session: aiohttp.ClientSession):
