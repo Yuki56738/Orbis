@@ -56,20 +56,18 @@ class ItemAPI:
             print(f"[delete_item] ClientError: {e}")
         return False
 
-# ここから追加ユーティリティ関数
+# 追加ユーティリティ関数
 
-async def consume_item(gov_id: str, item_id: str) -> bool:
+async def use_item(gov_id: str, item_id: str) -> bool:
     """
-    アイテムを1個消費する処理
-    所持していればamountを-1し、0になればアイテム削除
-    成功すればTrue, 所持なしはFalse返す
+    アイテムを1個消費する（所持していればamount-1、0なら削除）
+    成功すればTrue、持ってなければFalse
     """
     async with aiohttp.ClientSession() as session:
         api = ItemAPI(session)
         items = await api.get_items(gov_id)
         if not items:
             return False
-        # 対象アイテムを探す
         for item in items:
             if item.get("item_id") == item_id and item.get("amount", 0) > 0:
                 inventory_id = item.get("inventory_id")
@@ -81,3 +79,19 @@ async def consume_item(gov_id: str, item_id: str) -> bool:
                     deleted = await api.delete_item(inventory_id)
                     return deleted
         return False
+
+async def get_inventory(gov_id: str) -> dict:
+    """
+    所持アイテム一覧を辞書で返す (item_id -> {inventory_id, amount})
+    """
+    async with aiohttp.ClientSession() as session:
+        api = ItemAPI(session)
+        items = await api.get_items(gov_id)
+        result = {}
+        if items:
+            for item in items:
+                result[item["item_id"]] = {
+                    "inventory_id": item.get("inventory_id"),
+                    "count": item.get("amount", 0)
+                }
+        return result

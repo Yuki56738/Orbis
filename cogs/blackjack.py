@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands, ui
 from utils.economy_api import EconomyAPI
-from utils import item_utils  # インベントリ関連ユーティリティ（後述）
+from utils import item as item_utils
 import random
 import asyncio
 import aiohttp
@@ -88,7 +88,8 @@ class BlackJack(commands.Cog):
 
     async def on_hit(self, interaction: discord.Interaction):
         game = self.active_games.get(interaction.message.id)
-        if not game: return
+        if not game:
+            return
 
         game["player_hand"].append(game["deck"].draw())
         game["player_value"] = calculate_hand_value(game["player_hand"])
@@ -104,7 +105,8 @@ class BlackJack(commands.Cog):
 
     async def on_stand(self, interaction: discord.Interaction):
         game = self.active_games.get(interaction.message.id)
-        if not game: return
+        if not game:
+            return
 
         game["view"].disable_all_buttons()
         await interaction.response.edit_message(view=game["view"])
@@ -178,7 +180,7 @@ class BlackJack(commands.Cog):
 
             item_used = False
             if use_bonus:
-                has_card = await item_utils.consume_item(shared_id, "insurance_card")
+                has_card = await item_utils.use_item(shared_id, "insurance_card")
                 if not has_card:
                     return await ctx.send("インシュランス・カードを持っていません。", ephemeral=True)
                 item_used = True
