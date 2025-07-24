@@ -2,17 +2,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands, ui
 from ..utils import economy_api, shop as shop_utils, item as item_utils, misc
-import json
-from datetime import datetime
-import os
-
-DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/shop_items.json")
-
-
-def load_shop_items() -> dict:
-    with open(DATA_PATH, encoding="utf-8") as f:
-        return json.load(f)
-
 
 class PurchaseModal(ui.Modal, title="購入数量を入力"):
     quantity = ui.TextInput(label="数量", placeholder="1", required=True)
@@ -36,7 +25,7 @@ class PurchaseModal(ui.Modal, title="購入数量を入力"):
 
 
 class ShopView(ui.View):
-    def __init__(self, author: discord.Member, shop_items: dict):
+    def __init__(self, author: discord.Member, shop_items: dict[str, dict]):
         super().__init__(timeout=180)
         self.author = author
         self.shop_items = shop_items
@@ -63,10 +52,10 @@ class ShopView(ui.View):
     async def on_select(self, interaction: discord.Interaction):
         self.selected = interaction.data["values"][0]
         gov = misc.get_shared_id(interaction.guild.id, interaction.user.id)
-        # DB取得
+
         self.balance = (await economy_api.EconomyAPI(interaction.client.http_session).get_user(gov))["balance"]
         self.stock = await shop_utils.fetch_item_stock(self.selected)
-        owned = await shop_utils.fetch_user_item_amount(gov, self.selected)
+        owned = await item_utils.get_user_item_count(gov, self.selected)  # ← 修正ポイント
 
         info = self.shop_items[self.selected]
         embed = discord.Embed(
@@ -99,7 +88,6 @@ class ShopView(ui.View):
         if stock < qty:
             return await interaction.response.send_message("在庫が不足しています。", ephemeral=True)
 
-        # ① 購入→在庫減→所持アイテム増→残高減
         ok = await shop_utils.purchase_item(gov, item_id, qty)
         ok &= await item_utils.add_item(gov, item_id, qty)
         ok &= await economy_api.EconomyAPI(interaction.client.http_session).update_user(gov, {"balance": self.balance - total})
@@ -113,14 +101,19 @@ class ShopView(ui.View):
 class Shop(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.shop_items = load_shop_items()
 
     @commands.hybrid_command()
     @app_commands.describe()
     async def shop(self, ctx: commands.Context):
         embed = discord.Embed(title="🏬 ショップ", description="メニューからアイテムを選んでください。", color=discord.Color.blurple())
-        view = ShopView(ctx.author, self.shop_items)
+
+        # 🔄 DB + JSON連携で取得
+        items = await shop_utils.fetch_shop_items()
+        item_map = {item["item_id"]: item for item in items if item["active"]}
+
+        view = ShopView(ctx.author, item_map)
         await ctx.send(embed=embed, view=view)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Shop(bot))
