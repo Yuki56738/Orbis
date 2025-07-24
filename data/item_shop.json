@@ -1,0 +1,42 @@
+{
+  "login_crystal": {
+    "name": "ログインクリスタル",
+    "description": "ログインボーナスの獲得量を強化します。",
+    "price": 100000,
+    "max_own": 3,
+    "weekly_limit": 5,
+    "daily_limit": null
+  },
+  "risk_charm": {
+    "name": "ハイリスク・ハイリターンのお守り",
+    "description": "報酬が1.5倍になるお守りです。",
+    "price": 50000,
+    "max_own": 64,
+    "weekly_limit": null,
+    "daily_limit": 32
+  },
+  "insurance_card": {
+    "name": "インシュランス・カード",
+    "description": "報酬が1.5倍になるカードです。",
+    "price": 50000,
+    "max_own": 64,
+    "weekly_limit": null,
+    "daily_limit": 32
+  },
+  "poker_chip": {
+    "name": "幸運のポーカーチップ",
+    "description": "報酬が1.5倍になります。",
+    "price": 50000,
+    "max_own": 64,
+    "weekly_limit": null,
+    "daily_limit": 32
+  },
+  "chinchiro_cup": {
+    "name": "イカサマの壺",
+    "description": "報酬が1.5倍になる壺です。",
+    "price": 50000,
+    "max_own": 64,
+    "weekly_limit": null,
+    "daily_limit": 32
+  }
+}
