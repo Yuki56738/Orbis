@@ -1,19 +1,14 @@
 import aiohttp
 import logging
 import json
-import os
 from pathlib import Path
-import json
 
 BASE_URL = "http://localhost:8000/api/shop"  # 仮のAPIエンドポイント
 logger = logging.getLogger(__name__)
 
-
+# JSON定義ファイルのパス（Botが販売する公式アイテム定義）
 DATA_DIR = Path(__file__).parent.parent / "data"
-ITEMS_JSON_PATH = DATA_DIR / "items_definition.json"
-
-with open(ITEMS_JSON_PATH, "r", encoding="utf-8") as f:
-    item_definitions = json.load(f)
+ITEM_DEF_FILE = DATA_DIR / "items_definition.json"
 
 # 一度だけ読み込むようにキャッシュ
 _item_definitions: dict[str, dict] = {}
