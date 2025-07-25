@@ -137,7 +137,32 @@ class Economy(commands.Cog):
             "balance": user["balance"],
             "level": level
         })
+    @app_commands.command(name="ranking",description="経済のレベルランキングを表示します")
+    @app_commands.describe(page="ページ番号(1ページ30人ほど表示)")
+    async def ranking(self,Interaction,page:int=1):
+        if page < 1:
+            return await Interaction.response.send_message("❌ ページ番号は1以上を指定してください。", ephemeral=True)
 
+        users = await economy_api.get_all_users()
+        if not users:
+            return await Interaction.response.send_message("📊 現在、ランキングに表示できるユーザーがいません。", ephemeral=True)
+
+        users.sort(key=lambda x: (x.get("level", 0), x.get("balance", 0)), reverse=True)
+        start_index = (page - 1) * 30
+        end_index = start_index + 30
+        paginated_users = users[start_index:end_index]
+
+        if not paginated_users:
+            return await Interaction.response.send_message(f"📊 ページ {page} のランキングは存在しません。", ephemeral=True)
+
+        ranking_message = "📊 経済レベルランキング\n\n"
+        for idx, user in enumerate(paginated_users, start=start_index + 1):
+            user_id = user.get("shared_id")
+            balance = user.get("balance", 0)
+            level = user.get("level", 1)
+            ranking_message += f"{idx}. <@{user_id}> - レベル: {level}, 所持金: {balance} 円\n"
+
+        await Interaction.response.send_message(ranking_message)
 # setup
 async def setup(bot):
     await bot.add_cog(Economy(bot))

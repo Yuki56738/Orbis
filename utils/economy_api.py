@@ -37,3 +37,12 @@ class EconomyAPI:
         except aiohttp.ClientError as e:
             print(f"[update_user] ClientError: {e}")
         return None
+    async def get_all_user(self) -> Optional[list]:
+        try:
+            async with self.session.get(f"{BASE_URL}/user") as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                print(f"[get_all_user] Error {resp.status}: {await resp.text()}")
+        except aiohttp.ClientError as e:
+            print(f"[get_all_user] ClientError: {e}")
+        return None
