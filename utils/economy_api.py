@@ -46,3 +46,15 @@ class EconomyAPI:
         except aiohttp.ClientError as e:
             print(f"[get_all_user] ClientError: {e}")
         return None
+    async def add_money(self, shared_id: str, amount: int) -> Optional[dict]:
+        user = await self.get_user(shared_id)
+        if user is None:
+            print(f"[add_money] User {shared_id} not found. Creating user.")
+            user = await self.create_user(shared_id)
+            if user is None:
+                return None
+        
+        current_money = user.get("money", 0)
+        new_money = current_money + amount
+
+        return await self.update_user(shared_id, {"money": new_money})
