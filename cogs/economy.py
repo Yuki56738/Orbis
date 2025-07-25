@@ -137,32 +137,35 @@ class Economy(commands.Cog):
             "balance": user["balance"],
             "level": level
         })
-    @app_commands.command(name="ranking",description="経済のレベルランキングを表示します")
-    @app_commands.describe(page="ページ番号(1ページ30人ほど表示)")
-    async def ranking(self,Interaction,page:int=1):
-        if page < 1:
-            return await Interaction.response.send_message("❌ ページ番号は1以上を指定してください。", ephemeral=True)
-
+    @app_commands.command(name="rank", description="ユーザーのレベルランキングを表示します。")
+    @app_commands.describe(page="表示するページ番号（1ページ30人）")
+    async def rank(self, interaction: Interaction, page: int = 1):
+        # 全ユーザーデータ取得（economy_api側にall_users()がある前提）
         users = await economy_api.get_all_users()
         if not users:
-            return await Interaction.response.send_message("📊 現在、ランキングに表示できるユーザーがいません。", ephemeral=True)
+            return await interaction.response.send_message("📉 ランキングデータが見つかりません。")
 
-        users.sort(key=lambda x: (x.get("level", 0), x.get("balance", 0)), reverse=True)
-        start_index = (page - 1) * 30
-        end_index = start_index + 30
-        paginated_users = users[start_index:end_index]
+        # レベルでソート（降順）し、順位付きで整形
+        users.sort(key=lambda x: x.get("level", 1), reverse=True)
+        total_pages = (len(users) + 29) // 30
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * 30
+        end = start + 30
+        ranking_slice = users[start:end]
 
-        if not paginated_users:
-            return await Interaction.response.send_message(f"📊 ページ {page} のランキングは存在しません。", ephemeral=True)
+        embed = discord.Embed(
+            title=f"🏆 レベルランキング（ページ {page}/{total_pages}）",
+            description="現在のトップユーザーたちのランキングです。",
+            color=discord.Color.gold()
+        )
 
-        ranking_message = "📊 経済レベルランキング\n\n"
-        for idx, user in enumerate(paginated_users, start=start_index + 1):
-            user_id = user.get("shared_id")
-            balance = user.get("balance", 0)
+        for i, user in enumerate(ranking_slice, start=start + 1):
+            mention = f"<@{user['shared_id']}>"  # DiscordのユーザーID形式にして表示
             level = user.get("level", 1)
-            ranking_message += f"{idx}. <@{user_id}> - レベル: {level}, 所持金: {balance} 円\n"
+            embed.add_field(name=f"{i}位", value=f"{mention}：Lv.{level}", inline=False)
 
-        await Interaction.response.send_message(ranking_message)
+        await interaction.response.send_message(embed=embed)
+
 # setup
 async def setup(bot):
     await bot.add_cog(Economy(bot))
