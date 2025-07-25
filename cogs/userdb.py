@@ -1,5 +1,6 @@
 import asyncpg
 from discord.ext import commands
+import json
 
 DB_CONFIG = {
     "user": "orbisuser",
@@ -25,7 +26,14 @@ class UserDBHandler(commands.Cog):
                     PRIMARY KEY (user_id, key)
                 );
             """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_adventure_states (
+                    user_id BIGINT PRIMARY KEY,
+                    adventure_state JSONB
+                );
+            """)
 
+    # 既存のキー・バリュー操作
     async def set_user_setting(self, user_id: int, key: str, value: str):
         query = """
             INSERT INTO user_settings (user_id, key, value)
@@ -46,6 +54,28 @@ class UserDBHandler(commands.Cog):
         query = "DELETE FROM user_settings WHERE user_id = $1 AND key = $2"
         async with self.pool.acquire() as conn:
             await conn.execute(query, user_id, key)
+
+    # 【追加】冒険状態JSON操作
+    async def set_adventure_state(self, user_id: int, state: dict):
+        query = """
+            INSERT INTO user_adventure_states (user_id, adventure_state)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id)
+            DO UPDATE SET adventure_state = EXCLUDED.adventure_state
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, user_id, json.dumps(state))
+
+    async def get_adventure_state(self, user_id: int) -> dict | None:
+        query = "SELECT adventure_state FROM user_adventure_states WHERE user_id = $1"
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query, user_id)
+            return row["adventure_state"] if row else None
+
+    async def clear_adventure_state(self, user_id: int):
+        query = "DELETE FROM user_adventure_states WHERE user_id = $1"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, user_id)
 
 async def setup(bot):
     await bot.add_cog(UserDBHandler(bot))
