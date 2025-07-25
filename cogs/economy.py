@@ -3,8 +3,8 @@ import datetime
 from discord.ext import commands
 from discord import app_commands, Interaction, Member, Message
 import discord
-
-from services import economy_api
+from utils import fortune
+from utils import economy_api
 
 class Economy(commands.Cog):
     def __init__(self, bot):
@@ -45,7 +45,10 @@ class Economy(commands.Cog):
 
         activity = user.get("activity_score", 100)
         level = user.get("level", 1)
-        income = random.randint(int(activity * level * 1.5 * 10), int(activity * level * 2.0 * 10))
+        fortune_effects = await fortune.get_today_fortune_effects(interaction.user.id)
+        income_multiplier = fortune_effects.get("income_multiplier", 1.0)
+        income = int(random.randint(int(activity * level * 1.5 * 10), int(activity * level * 2.0 * 10)) * income_multiplier)
+
 
         await economy_api.update_user(shared_id, {
             "balance": user["balance"] + income,

@@ -21,7 +21,7 @@ intents.members = True
 intents.guilds = True
 
 # Bot本体
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="o/", intents=intents)
 tree = bot.tree
 
 # 起動時イベント

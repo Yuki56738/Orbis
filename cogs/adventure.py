@@ -8,6 +8,7 @@ import aiohttp
 from utils import adventure as adventure_utils
 from utils import item as item_utils
 from utils import economy_api as economy_utils
+from utils import fortune
 
 class Adventure(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -36,8 +37,10 @@ class Adventure(commands.Cog):
 
     @app_commands.command(name="adventure_explore", description="冒険を探索してイベントを進行させます")
     async def explore(self, interaction: discord.Interaction):
+        fortune_effects = await fortune.get_today_fotune_effects(interaction.user.id)
+        bonus = fortune_effects.get("event_success_rate_bonus",0)
         event = await adventure_utils.get_random_event()
-        roll_result, passed, message = await adventure_utils.resolve_event(interaction.user.id, event)
+        roll_result, passed, message = await adventure_utils.resolve_event(interaction.user.id, event,bonus_modifier=bonus)
 
         embed = discord.Embed(title=f"📜 イベント: {event['name']}", description=event["description"], color=0x66ccff)
         embed.add_field(name="🎲 判定", value=message, inline=False)

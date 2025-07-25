@@ -6,6 +6,7 @@ import aiohttp
 
 from utils import economy_api
 from utils import item as item_utils
+from utils import fortune
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "../data")
 
@@ -74,8 +75,14 @@ class AdventureManager:
         event = random.choice(ADVENTURE_EVENTS)
         check_type = event.get("check_type", "luk")
         stat_value = await self.get_stat(user_id, check_type)
+
+        # 🎯 おみくじ効果を取得（成功率に補正）
+        fortune_effects = await fortune.get_today_fortune_effects(user_id)
+        bonus = fortune_effects.get("event_success_rate_bonus", 0.0)
+
         dice = roll_dice()
-        success = check_success(dice, stat_value, event["difficulty_class"])
+        success_threshold = event["difficulty_class"] - bonus
+        success = check_success(dice, stat_value, success_threshold)
 
         if success:
             msg = event.get("success_message", "成功しました。")
