@@ -5,7 +5,7 @@ from discord.ui import View, Button
 import json
 
 class Admin(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     # --- BAN コマンド ---

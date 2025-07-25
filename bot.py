@@ -9,6 +9,8 @@ import logging
 # 環境変数読み込み（.env対応）
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+if not TOKEN:
+    raise ValueError("DISCORD_TOKEN environment variable is not set.")
 GUILD_ID = int(os.getenv("GUILD_ID", 0))
 
 # ログ設定
@@ -86,4 +88,3 @@ async def main():
 # 実行
 if __name__ == "__main__":
     asyncio.run(main())
-
