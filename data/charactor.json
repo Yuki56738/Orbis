@@ -12,7 +12,7 @@
             "text":"あ、そうだ！最近新しいお菓子を作ったんだ！食べてみる？",
             "image":"https://example.com/images/yuzuha_msg3.png"
         },
-        "event":{
+        "responce":{
             "happy":{
                 "text":"わーい！嬉しいなぁ！一緒に遊ぶの楽しみ！",
                 "image":"https://example.com/images/yuzuha_happy.png"
@@ -20,6 +20,98 @@
             "sad":{
                 "text":"うぅ...ちょっと悲しいなぁ、、、",
                 "image":"https://example.com/images/yuzuha_sad.png"
+            }
+        },
+        "love_event":{
+            "clingy_time":{
+                "requirement":{
+                    "affection":30,
+                    "love":20
+                },
+            "chance":0.1,
+            "text": "ねぇねぇ、ぎゅーってしてもいい？なんか、今すごくさみしいの……。",
+            "image": "https://example.com/images/yuzuha_clingy.png"
+            },
+            "surprise_present":{
+                "requirement":{
+                    "affection":50,
+                    "love":35
+                },
+            "chance":0.05,
+            "text":"じゃーん！これ、あなたのために買ってきたの！喜んでくれるといいな〜",
+            "image":"https://example.com/images/yuzuha_present.png"
+            },
+            "tsundere_mode": {
+                "requirement": {
+                    "affection": 20,
+                    "love": 30
+                },
+                "chance": 0.07,
+                "text": "べ、別にあんたのことなんて好きじゃないんだからね！？……うそ、ちょっとだけ好き……",
+                "image": "https://example.com/images/yuzuha_tsundere.png"
+            },
+            "surprise_date":{
+                "requirement":{
+                    "affection":40,
+                    "love":55
+                },
+            "chance":0.03,
+            "text":"ちょっと時間ある？今日はどこか素敵な場所に行こ?ね？",
+            "image":"https://example.com/images/yuzuha_date.png"
+            },
+            "night_skay":{
+                "requirement":{
+                    "affection":35,
+                    "love":50
+                },
+            "chance":0.02,
+            "text":"夜空を一緒に見上げるのって、なんだか特別な感じがするよね。星がきれいだね。",
+            "image":"https://example.com/images/yuzuha_night_sky.png"
+            },
+            "seclet_message":{
+                "requirement":{
+                    "affection":50,
+                    "love":40
+                },
+            "chance":0.06,
+            "text":"私とあなただけの秘密！絶対に漏らさないでね？",
+            "image":"https://example.com/images/yuzuha_secret.png"
+            },
+            "Anniversary_surprise":{
+                "requirement":{
+                    "affection":60,
+                    "love":70
+                },
+            "chance":0.04,
+            "text":"今日は特別な日だよね？ふふふ、今日はめいっぱい暴れちゃお！",
+            "image":"https://example.com/images/yuzuha_anniversary.png"
+            },
+            "co-sleeping":{
+                "requirement":{
+                    "affection":45,
+                    "love":65
+                },
+            "chance":0.08,
+            "text":"今日ちょっと怖いの、、一緒に寝て？いい？",
+            "image":"https://example.com/images/yuzuha_cuddle.png"
+            },
+            "kiss":{
+                "requirement":{
+                    "affection":80,
+                    "love":90
+                },
+            "chance":0.01,
+            "text":"ねぇねぇ、こっち来て？そのまま動いちゃだめ、目を閉じて……",
+            "image":"https://example.com/images/yuzuha_kiss.png"
+            },
+            "confession":{
+                "requirement":{
+                    "affection":80,
+                    "love":90
+                },
+            "chance":0.01,
+            "text":"あのね、ずっと言いたかったことがあるの。あなたのことが大好き！",
+            "image":"https://example.com/images/yuzuha_confession.png"
             }
         }
     }
