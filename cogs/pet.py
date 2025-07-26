@@ -7,26 +7,39 @@ from datetime import datetime
 from utils.item import use_item
 from utils.economy_api import EconomyAPI
 import asyncio
+import json
+import os
 
 class Pet(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.pool: asyncpg.Pool = None
+        self.pet_images = {}
 
     async def cog_load(self):
         self.pool = self.bot.db.pool
+        # JSON読み込み
+        json_path = os.path.join("data","pet_images.json")
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                self.pet_images = json.load(f)
+        except Exception as e:
+            print(f"ペット画像の読み込みに失敗しました: {e}")
+            self.pet_images = {}
+
+        # petsテーブル作成（存在しなければ）
         async with self.pool.acquire() as conn:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS pets (
                     guild_id BIGINT PRIMARY KEY,
                     pet_name TEXT,
+                    pet_type TEXT DEFAULT 'cat',
                     level INT DEFAULT 1,
                     experience INT DEFAULT 0,
                     affection INT DEFAULT 0,
                     stage TEXT DEFAULT 'egg',
                     emotion TEXT DEFAULT 'neutral',
                     last_fed TIMESTAMP,
-                    last_battle TIMESTAMP,
                     created_at TIMESTAMP DEFAULT NOW()
                 );
             """)
@@ -36,18 +49,38 @@ class Pet(commands.Cog):
         async with self.pool.acquire() as conn:
             return await conn.fetchrow("SELECT * FROM pets WHERE guild_id = $1", guild_id)
 
+    def get_pet_image_url(self, pet_type: str, stage: str = None, action: str = None, emotion: str = None) -> str:
+        pet_data = self.pet_images.get(pet_type)
+        if not pet_data:
+            return "https://example.com/default_pet_images.png"
+
+        # emoteの場合はemotion必須
+        if action == "emote":
+            if not emotion:
+                return "https://example.com/default_pet_images.png"
+            return pet_data.get("emote", {}).get(emotion, "https://example.com/default_pet_images.png")
+
+        # action指定があればそのキーの画像を返す（feed, gift, birthday, affection, rewardなど）
+        if action:
+            return pet_data.get(action, "https://example.com/default_pet_images.png")
+
+        # stageやaction指定なしはpet_create画像を返す
+        return pet_data.get("pet_create", "https://example.com/default_pet_images.png")
+
     async def update_pet(self, guild_id: int, **kwargs):
+        if not kwargs:
+            return
         keys = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(kwargs))
         values = list(kwargs.values())
         async with self.pool.acquire() as conn:
             await conn.execute(f"UPDATE pets SET {keys} WHERE guild_id = $1", guild_id, *values)
 
-    async def create_pet(self, guild_id: int, name: str):
+    async def create_pet(self, guild_id: int, name: str, pet_type: str):
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO pets (guild_id, pet_name)
-                VALUES ($1, $2)
-            """, guild_id, name)
+                INSERT INTO pets (guild_id, pet_name, pet_type)
+                VALUES ($1, $2, $3)
+            """, guild_id, name, pet_type)
 
     async def delete_pet(self, guild_id: int):
         async with self.pool.acquire() as conn:
@@ -60,31 +93,55 @@ class Pet(commands.Cog):
         userdb = self.bot.get_cog("UserDBHandler")
         economy: EconomyAPI = self.bot.get_cog("EconomyAPI")
 
-        total_actions = await userdb.get_pet_action_count(guild_id)
+        total_actions = await userdb.get_today_action_count(guild_id, user_id)
+        if total_actions == 0:
+            return
+
         random_multiplier = random.randint(50, 100)
         reward_amount = total_actions * random_multiplier
 
         await economy.add_money(guild_id, user_id, reward_amount)
 
-        await asyncio.sleep(3)
+        pet = await self.get_pet(guild_id)
+        image_url = self.get_pet_image_url(pet["pet_type"]) if pet else "https://example.com/default_pet_images.png"
+
+        await asyncio.sleep(2)
         try:
-            await interaction.user.send(f"🎉 ペットと遊んだご褒美として {reward_amount} コインを獲得しました！")
+            await interaction.user.send(
+                embed=discord.Embed(
+                    title="🎉 ペットからのごほうび！",
+                    description=f"{reward_amount} コインをゲット！",
+                    color=0x44dd77
+                ).set_image(url=image_url)
+            )
         except discord.Forbidden:
-            await interaction.response.send_message("💡 DMが送れませんでした！設定を確認してください。", ephemeral=True)
+            await interaction.response.send_message("DMが送れませんでした。報酬を確認してください！", ephemeral=True)
 
     # ---------- スラッシュコマンド ----------
     @app_commands.command(name="pet_create", description="サーバーにペットを生み出します！")
-    async def create(self, interaction: discord.Interaction, name: str):
+    @app_commands.describe(pet_type="ペットの種類（cat/dog/dragon/slime/rabbitなど）")
+    async def create(self, interaction: discord.Interaction, name: str, pet_type: str):
         if await self.get_pet(interaction.guild_id):
             return await interaction.response.send_message("このサーバーにはすでにペットがいます！", ephemeral=True)
-        await self.create_pet(interaction.guild_id, name)
-        await interaction.response.send_message(f"🐣 ペット `{name}` が誕生しました！大切に育ててね！")
+
+        if pet_type not in self.pet_images.keys():
+            return await interaction.response.send_message(f"無効なペットタイプです。利用可能な種類: {', '.join(self.pet_images.keys())}", ephemeral=True)
+
+        embed = discord.Embed(
+            title="🐾 ペットの誕生",
+            description=f"🐣 `{name}` ({pet_type}) が誕生しました！大切に育ててね！",
+            color=0x88ccff
+        )
+        embed.set_image(url=self.get_pet_image_url(pet_type))
+        await self.create_pet(interaction.guild_id, name, pet_type)
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="pet_status", description="ペットの状態を確認します。")
     async def status(self, interaction: discord.Interaction):
         pet = await self.get_pet(interaction.guild_id)
         if not pet:
             return await interaction.response.send_message("このサーバーにはまだペットがいません！", ephemeral=True)
+
         embed = discord.Embed(title=f"🐾 {pet['pet_name']} のステータス", color=0x88ccff)
         embed.add_field(name="レベル", value=pet["level"])
         embed.add_field(name="経験値", value=pet["experience"])
@@ -92,6 +149,8 @@ class Pet(commands.Cog):
         embed.add_field(name="成長段階", value=pet["stage"])
         embed.add_field(name="感情", value=pet["emotion"])
         embed.add_field(name="誕生日", value=pet["created_at"].strftime("%Y-%m-%d"))
+        embed.set_image(url=self.get_pet_image_url(pet["pet_type"], stage=pet["stage"], action="emote", emotion=pet["emotion"]))
+
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="pet_feed", description="ペットにご飯をあげよう！")
@@ -99,6 +158,13 @@ class Pet(commands.Cog):
         pet = await self.get_pet(interaction.guild_id)
         if not pet:
             return await interaction.response.send_message("まだペットがいません！", ephemeral=True)
+
+        embed = discord.Embed(
+            title=f"🍽️ {pet['pet_name']} にご飯をあげる",
+            description=f"{pet['pet_name']}はおいしそうにご飯を食べてるよ！",
+            color=0x88ccff
+        )
+        embed.set_image(url=self.get_pet_image_url(pet["pet_type"], stage=pet["stage"], action="feed"))
 
         await self.update_pet(
             interaction.guild_id,
@@ -112,9 +178,10 @@ class Pet(commands.Cog):
         await userdb.increment_pet_action_count(interaction.guild_id)
         await self.send_reward_to_user(interaction)
 
-        await interaction.response.send_message("🍎 ペットにご飯をあげました！うれしそう！")
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="pet_gift", description="アイテムをプレゼントして喜ばせよう！")
+    @app_commands.describe(item_id="プレゼントするアイテムのID")
     async def gift(self, interaction: discord.Interaction, item_id: str):
         gov_id = f"{interaction.guild_id}-{interaction.user.id}"
         success = await use_item(gov_id, item_id)
@@ -122,6 +189,9 @@ class Pet(commands.Cog):
             return await interaction.response.send_message("そのアイテムは持っていないか、使用できません！", ephemeral=True)
 
         pet = await self.get_pet(interaction.guild_id)
+        if not pet:
+            return await interaction.response.send_message("ペットがいません！", ephemeral=True)
+
         await self.update_pet(
             interaction.guild_id,
             affection=pet["affection"] + 10,
@@ -129,10 +199,17 @@ class Pet(commands.Cog):
         )
 
         userdb = self.bot.get_cog("UserDBHandler")
+
+        embed = discord.Embed(
+            title=f"🎁 {pet['pet_name']} にプレゼント！",
+            description=f"{pet['pet_name']}はとても喜んでいるよ！",
+            color=0x88ccff
+        )
+        embed.set_image(url=self.get_pet_image_url(pet["pet_type"], action="gift"))
         await userdb.increment_pet_action_count(interaction.guild_id)
         await self.send_reward_to_user(interaction)
 
-        await interaction.response.send_message("🎁 プレゼントを渡しました！とっても喜んでいる！")
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="pet_birthday", description="ペットの誕生日を祝おう！")
     async def birthday(self, interaction: discord.Interaction):
@@ -193,6 +270,7 @@ class Pet(commands.Cog):
     async def mood(self, interaction: discord.Interaction):
         moods = ["きょうはいい日になりそう！", "ねむいなぁ…", "おなかすいたかも", "きみにあえてうれしい！"]
         await interaction.response.send_message(random.choice(moods))
+
 
 async def setup(bot):
     await bot.add_cog(Pet(bot))

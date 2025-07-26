@@ -1,6 +1,7 @@
 import asyncpg
 from discord.ext import commands
 import json
+import datetime
 
 DB_CONFIG = {
     "user": "orbisuser",
@@ -38,7 +39,15 @@ class UserDBHandler(commands.Cog):
                     total_pet_actions INTEGER DEFAULT 0
                 );
             """)
-
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_pet_actions (
+                    guild_id BIGINT,
+                    user_id BIGINT,
+                    action_date DATE,
+                    command_count INTEGER DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id, action_date)
+                );
+            """)
 
     # 既存のキー・バリュー操作
     async def set_user_setting(self, user_id: int, key: str, value: str):
@@ -100,6 +109,42 @@ class UserDBHandler(commands.Cog):
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(query, guild_id)
             return row["total_pet_actions"] if row else 0
+
+    # 新規：コマンド実行履歴をインクリメント
+    async def increment_pet_action_count(self, guild_id: int, user_id: int):
+        today = datetime.utcnow().date()
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO user_pet_actions (guild_id, user_id, action_date, command_count)
+                VALUES ($1, $2, $3, 1)
+                ON CONFLICT (guild_id, user_id, action_date)
+                DO UPDATE SET command_count = user_pet_actions.command_count + 1
+            """, guild_id, user_id, today)
+
+    # 新規：その日の合計アクション数を取得（数値A）
+    async def get_today_action_count(self, guild_id: int, user_id: int) -> int:
+        today = datetime.utcnow().date()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                SELECT command_count FROM user_pet_actions
+                WHERE guild_id = $1 AND user_id = $2 AND action_date = $3
+            """, guild_id, user_id, today)
+            return row["command_count"] if row else 0
+
+    # 新規：全ユーザー分の今日のコマンド履歴を取得（自動報酬用途）
+    async def get_all_today_pet_actions(self):
+        today = datetime.utcnow().date()
+        async with self.pool.acquire() as conn:
+            return await conn.fetch("""
+                SELECT guild_id, user_id, command_count FROM user_pet_actions
+                WHERE action_date = $1
+            """, today)
+
+    # 新規：履歴を削除（報酬配布後リセット用）
+    async def reset_pet_action_counts(self):
+        today = datetime.utcnow().date()
+        async with self.pool.acquire() as conn:
+            await conn.execute("DELETE FROM user_pet_actions WHERE action_date = $1", today)
 
 
 async def setup(bot):
