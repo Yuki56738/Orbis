@@ -3,6 +3,8 @@ from discord.ext import commands
 from discord import app_commands
 import random
 from utils import economy_api
+import aiohttp
+import asyncio
 
 CHOICES = {
     "✊": "rock",
@@ -106,7 +108,7 @@ class Janken(commands.Cog):
             await interaction.response.send_message("掛け金は正の整数である必要があります。", ephemeral=True)
             return
 
-        shared_id = f"{interaction.guild_id}-{interaction.user.id}"
+        shared_id = f"{interaction.guild.id}-{interaction.user.id}"
         api = economy_api.EconomyAPI(self.session)
         user = await api.get_user(shared_id)
         if not user:

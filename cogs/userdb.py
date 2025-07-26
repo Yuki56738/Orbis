@@ -92,16 +92,6 @@ class UserDBHandler(commands.Cog):
         query = "DELETE FROM user_adventure_states WHERE user_id = $1"
         async with self.pool.acquire() as conn:
             await conn.execute(query, user_id)
-    # ペット行動回数の加算
-    async def increment_pet_action_count(self, guild_id: int):
-        query = """
-            INSERT INTO pet_reward_stats (guild_id, total_pet_actions)
-            VALUES ($1, 1)
-            ON CONFLICT (guild_id)
-            DO UPDATE SET total_pet_actions = pet_reward_stats.total_pet_actions + 1
-        """
-        async with self.pool.acquire() as conn:
-            await conn.execute(query, guild_id)
 
     # ペット行動回数の取得
     async def get_pet_action_count(self, guild_id: int) -> int:
@@ -153,7 +143,44 @@ class UserDBHandler(commands.Cog):
     # キャラ取得
     async def get_partner_character(self, user_id: int) -> str | None:
         return await self.get_user_setting(user_id, "partner_character")
+    
+    # ───────── 恋愛系ステータスの保存と取得 ───────── #
 
+    # 恋愛度（キャラの依存度）
+    async def get_affection(self, user_id: int) -> int:
+        val = await self.get_user_setting(user_id, "affection")
+        return int(val) if val else 0
+
+    async def set_affection(self, user_id: int, value: int):
+        await self.set_user_setting(user_id, "affection", str(value))
+
+    async def increment_affection(self, user_id: int, delta: int = 1):
+        current = await self.get_affection(user_id)
+        await self.set_affection(user_id, current + delta)
+
+    # 好感度（キャラの好きの強さ）
+    async def get_likeability(self, user_id: int) -> int:
+        val = await self.get_user_setting(user_id, "likeability")
+        return int(val) if val else 0
+
+    async def set_likeability(self, user_id: int, value: int):
+        await self.set_user_setting(user_id, "likeability", str(value))
+
+    async def increment_likeability(self, user_id: int, delta: int = 1):
+        current = await self.get_likeability(user_id)
+        await self.set_likeability(user_id, current + delta)
+
+    # 親密度（キャラがユーザーをどれだけ受け入れているか）
+    async def get_intimacy(self, user_id: int) -> int:
+        val = await self.get_user_setting(user_id, "intimacy")
+        return int(val) if val else 0
+
+    async def set_intimacy(self, user_id: int, value: int):
+        await self.set_user_setting(user_id, "intimacy", str(value))
+
+    async def increment_intimacy(self, user_id: int, delta: int = 1):
+        current = await self.get_intimacy(user_id)
+        await self.set_intimacy(user_id, current + delta)
 
 
 async def setup(bot):

@@ -121,7 +121,7 @@ class Pet(commands.Cog):
     @app_commands.command(name="pet_create", description="サーバーにペットを生み出します！")
     @app_commands.describe(pet_type="ペットの種類（cat/dog/dragon/slime/rabbitなど）")
     async def create(self, interaction: discord.Interaction, name: str, pet_type: str):
-        if await self.get_pet(interaction.guild_id):
+        if await self.get_pet(interaction.guild.id):
             return await interaction.response.send_message("このサーバーにはすでにペットがいます！", ephemeral=True)
 
         if pet_type not in self.pet_images.keys():
@@ -133,12 +133,12 @@ class Pet(commands.Cog):
             color=0x88ccff
         )
         embed.set_image(url=self.get_pet_image_url(pet_type))
-        await self.create_pet(interaction.guild_id, name, pet_type)
+        await self.create_pet(interaction.guild.id, name, pet_type)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="pet_status", description="ペットの状態を確認します。")
     async def status(self, interaction: discord.Interaction):
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("このサーバーにはまだペットがいません！", ephemeral=True)
 
@@ -155,7 +155,7 @@ class Pet(commands.Cog):
 
     @app_commands.command(name="pet_feed", description="ペットにご飯をあげよう！")
     async def feed(self, interaction: discord.Interaction):
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("まだペットがいません！", ephemeral=True)
 
@@ -167,7 +167,7 @@ class Pet(commands.Cog):
         embed.set_image(url=self.get_pet_image_url(pet["pet_type"], stage=pet["stage"], action="feed"))
 
         await self.update_pet(
-            interaction.guild_id,
+            interaction.guild.id,
             last_fed=datetime.utcnow(),
             experience=pet["experience"] + 10,
             affection=pet["affection"] + 2,
@@ -175,7 +175,7 @@ class Pet(commands.Cog):
         )
 
         userdb = self.bot.get_cog("UserDBHandler")
-        await userdb.increment_pet_action_count(interaction.guild_id)
+        await userdb.increment_pet_action_count(interaction.guild.id,interaction.user.id)
         await self.send_reward_to_user(interaction)
 
         await interaction.response.send_message(embed=embed)
@@ -183,17 +183,17 @@ class Pet(commands.Cog):
     @app_commands.command(name="pet_gift", description="アイテムをプレゼントして喜ばせよう！")
     @app_commands.describe(item_id="プレゼントするアイテムのID")
     async def gift(self, interaction: discord.Interaction, item_id: str):
-        gov_id = f"{interaction.guild_id}-{interaction.user.id}"
+        gov_id = f"{interaction.guild.id}-{interaction.user.id}"
         success = await use_item(gov_id, item_id)
         if not success:
             return await interaction.response.send_message("そのアイテムは持っていないか、使用できません！", ephemeral=True)
 
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("ペットがいません！", ephemeral=True)
 
         await self.update_pet(
-            interaction.guild_id,
+            interaction.guild.id,
             affection=pet["affection"] + 10,
             emotion="happy"
         )
@@ -206,55 +206,55 @@ class Pet(commands.Cog):
             color=0x88ccff
         )
         embed.set_image(url=self.get_pet_image_url(pet["pet_type"], action="gift"))
-        await userdb.increment_pet_action_count(interaction.guild_id)
+        await userdb.increment_pet_action_count(interaction.guild.id,interaction.user.id)
         await self.send_reward_to_user(interaction)
 
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="pet_birthday", description="ペットの誕生日を祝おう！")
     async def birthday(self, interaction: discord.Interaction):
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("ペットがいません！", ephemeral=True)
         created = pet["created_at"].strftime("%Y-%m-%d")
         await interaction.response.send_message(f"🎂 この子の誕生日は `{created}` だよ！おめでとうって言ってあげてね！")
 
         userdb = self.bot.get_cog("UserDBHandler")
-        await userdb.increment_pet_action_count(interaction.guild_id)
+        await userdb.increment_pet_action_count(interaction.guild.id,interaction.user.id)
         await self.send_reward_to_user(interaction)
 
     @app_commands.command(name="pet_name", description="ペットの名前を変える")
     async def rename(self, interaction: discord.Interaction, new_name: str):
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("ペットがいません！", ephemeral=True)
         if pet["affection"] < 10:
             return await interaction.response.send_message("もっと仲良くならないと名前を変えたくないみたい！", ephemeral=True)
-        await self.update_pet(interaction.guild_id, pet_name=new_name)
+        await self.update_pet(interaction.guild.id, pet_name=new_name)
         await interaction.response.send_message(f"📛 ペットの名前が `{new_name}` に変わりました！")
 
     @app_commands.command(name="pet_reset", description="ペットを削除します。")
     async def reset(self, interaction: discord.Interaction):
-        await self.delete_pet(interaction.guild_id)
+        await self.delete_pet(interaction.guild.id)
         await interaction.response.send_message("⚠️ ペットを削除しました。新しい子を育ててみよう！")
 
     @app_commands.command(name="pet_emotion", description="今の感情を確認します")
     async def emotion(self, interaction: discord.Interaction):
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("ペットがいません！", ephemeral=True)
         await interaction.response.send_message(f"現在の感情は `{pet['emotion']}` です！")
 
     @app_commands.command(name="pet_affection", description="好感度を確認します")
     async def affection(self, interaction: discord.Interaction):
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("ペットがいません！", ephemeral=True)
         await interaction.response.send_message(f"💕 好感度は `{pet['affection']}` です！")
 
     @app_commands.command(name="pet_talk", description="ペットと会話します。")
     async def talk(self, interaction: discord.Interaction):
-        pet = await self.get_pet(interaction.guild_id)
+        pet = await self.get_pet(interaction.guild.id)
         if not pet:
             return await interaction.response.send_message("ペットがいません！", ephemeral=True)
         emotion = pet["emotion"]
