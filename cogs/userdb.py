@@ -71,7 +71,7 @@ class UserDBHandler(commands.Cog):
         async with self.pool.acquire() as conn:
             await conn.execute(query, user_id, key)
 
-    # 【追加】冒険状態JSON操作
+    # 冒険状態JSON操作
     async def set_adventure_state(self, user_id: int, state: dict):
         query = """
             INSERT INTO user_adventure_states (user_id, adventure_state)
@@ -110,7 +110,7 @@ class UserDBHandler(commands.Cog):
             row = await conn.fetchrow(query, guild_id)
             return row["total_pet_actions"] if row else 0
 
-    # 新規：コマンド実行履歴をインクリメント
+    # 新コマンド実行履歴をインクリメント
     async def increment_pet_action_count(self, guild_id: int, user_id: int):
         today = datetime.utcnow().date()
         async with self.pool.acquire() as conn:
@@ -121,7 +121,7 @@ class UserDBHandler(commands.Cog):
                 DO UPDATE SET command_count = user_pet_actions.command_count + 1
             """, guild_id, user_id, today)
 
-    # 新規：その日の合計アクション数を取得（数値A）
+    # その日の合計アクション数を取得（数値A）
     async def get_today_action_count(self, guild_id: int, user_id: int) -> int:
         today = datetime.utcnow().date()
         async with self.pool.acquire() as conn:
@@ -131,7 +131,7 @@ class UserDBHandler(commands.Cog):
             """, guild_id, user_id, today)
             return row["command_count"] if row else 0
 
-    # 新規：全ユーザー分の今日のコマンド履歴を取得（自動報酬用途）
+    # 全ユーザー分の今日のコマンド履歴を取得（自動報酬用途）
     async def get_all_today_pet_actions(self):
         today = datetime.utcnow().date()
         async with self.pool.acquire() as conn:
@@ -140,11 +140,20 @@ class UserDBHandler(commands.Cog):
                 WHERE action_date = $1
             """, today)
 
-    # 新規：履歴を削除（報酬配布後リセット用）
+    # 履歴を削除（報酬配布後リセット用）
     async def reset_pet_action_counts(self):
         today = datetime.utcnow().date()
         async with self.pool.acquire() as conn:
             await conn.execute("DELETE FROM user_pet_actions WHERE action_date = $1", today)
+    
+    # キャラ選択
+    async def set_partner_character(self, user_id: int, character_id: str):
+        await self.set_user_setting(user_id, "partner_character", character_id)
+
+    # キャラ取得
+    async def get_partner_character(self, user_id: int) -> str | None:
+        return await self.get_user_setting(user_id, "partner_character")
+
 
 
 async def setup(bot):

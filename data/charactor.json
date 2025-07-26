@@ -1,0 +1,26 @@
+{
+    "yuzuha":{
+        "msg1":{
+            "text":"やっほー！柚葉だよー！暇してるのー？へぇー...",
+            "image":"https://example.com/images/yuzuha_msg1.png"
+        },
+        "msg2":{
+            "text":"今日は一緒に遊びたいな！何して遊ぶ？",
+            "image":"https://example.com/images/yuzuha_msg2.png"
+        },
+        "msg3":{
+            "text":"あ、そうだ！最近新しいお菓子を作ったんだ！食べてみる？",
+            "image":"https://example.com/images/yuzuha_msg3.png"
+        },
+        "event":{
+            "happy":{
+                "text":"わーい！嬉しいなぁ！一緒に遊ぶの楽しみ！",
+                "image":"https://example.com/images/yuzuha_happy.png"
+            },
+            "sad":{
+                "text":"うぅ...ちょっと悲しいなぁ、、、",
+                "image":"https://example.com/images/yuzuha_sad.png"
+            }
+        }
+    }
+}
