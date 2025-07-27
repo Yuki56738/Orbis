@@ -48,6 +48,16 @@ class UserDBHandler(commands.Cog):
                     PRIMARY KEY (guild_id, user_id, action_date)
                 );
             """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS global_events (
+                    user_id BIGINT,
+                    image_url TEXT,
+                    comment TEXT,
+                    votes INT DEFAULT 0,
+                    see_id INT
+                );
+            """)
+
 
     # 既存のキー・バリュー操作
     async def set_user_setting(self, user_id: int, key: str, value: str):
@@ -181,6 +191,58 @@ class UserDBHandler(commands.Cog):
     async def increment_intimacy(self, user_id: int, delta: int = 1):
         current = await self.get_intimacy(user_id)
         await self.set_intimacy(user_id, current + delta)
+
+    # ───────── 季節別イベント ───────── #
+
+    # 投稿の追加
+    async def add_event_submission(self, user_id: int, image_url: str, comment: str, see_id: int):
+        query = """
+            INSERT INTO global_events (user_id, image_url, comment, votes, see_id)
+            VALUES ($1, $2, $3, 0, $4)
+        """
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, user_id, image_url, comment, see_id)
+
+    # 投稿の取得（全件 or 特定see_id）
+    async def get_event_submissions(self, see_id: int = None):
+        async with self.pool.acquire() as conn:
+            if see_id is not None:
+                query = "SELECT * FROM global_events WHERE see_id = $1 ORDER BY votes DESC"
+                return await conn.fetch(query, see_id)
+            else:
+                query = "SELECT * FROM global_events ORDER BY votes DESC"
+                return await conn.fetch(query)
+
+    # 投票を追加
+    async def vote_event_submission(self, see_id: int):
+        query = "UPDATE global_events SET votes = votes + 1 WHERE see_id = $1"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, see_id)
+
+    # 投票数のリセット（イベント終了時）
+    async def reset_event_votes(self):
+        query = "UPDATE global_events SET votes = 0"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query)
+
+    # イベントデータの削除（初期化）
+    async def clear_event_submissions(self):
+        query = "DELETE FROM global_events"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query)
+
+    # 次に使えるsee_idを取得（最大値+1）
+    async def get_next_see_id(self) -> int:
+        query = "SELECT MAX(see_id) AS max_id FROM global_events"
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(query)
+            return (row["max_id"] or 0) + 1
+
+    # see_idから投稿を1件取得
+    async def get_event_submission_by_see_id(self, see_id: int):
+        query = "SELECT * FROM global_events WHERE see_id = $1"
+        async with self.pool.acquire() as conn:
+            return await conn.fetchrow(query, see_id)
 
 
 async def setup(bot):
