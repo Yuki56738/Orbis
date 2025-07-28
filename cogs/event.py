@@ -13,8 +13,8 @@ class EventCog(commands.Cog):
         self.bot = bot
         self.db = bot.userdb
 
-    def generate_see_id(self):
-        while true:
+    async def generate_see_id(self):
+        while True:
             see_id = "see" + ''.join(random.choices(string.ascii_letters + string.digits, k=10))
             if not await self.db.get_event_submission_by_see_id(see_id):
                 return see_id
