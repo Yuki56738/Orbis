@@ -2,3 +2,13 @@ discord
 aiohttp
 asyncpg
 random
+collections
+typing
+httpx
+pytz
+yt_dlp
+traceback
+datetime
+re
+pathlib
+logging
