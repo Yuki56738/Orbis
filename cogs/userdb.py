@@ -282,6 +282,11 @@ class UserDBHandler(commands.Cog):
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, see_id)
             
+    async def get_top_entries(self, limit: int = 5):
+        query = "SELECT * FROM global_events ORDER BY votes DESC LIMIT $1"
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(query, limit)
+            
     async def get_user_event_submissions(self, user_id: int):
         query = "SELECT see_id, title, comment FROM global_events WHERE user_id = $1"
         async with self.pool.acquire() as conn:
