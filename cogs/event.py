@@ -13,7 +13,10 @@ class EventCog(commands.Cog):
         self.db = UserDBHandler()
 
     def generate_see_id(self):
-        return "see" + ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+        while true:
+            see_id = "see" + ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+            if not await self.db.get_event_submission_by_see_id(see_id):
+                return see_id
 
     @app_commands.command(name="event_start", description="季節イベントを開始し、全サーバーとDMに通知を送信します。")
     async def event_start(self, interaction: discord.Interaction):
