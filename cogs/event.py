@@ -1,3 +1,4 @@
+from utils.permission import is_event_admin
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -16,6 +17,9 @@ class EventCog(commands.Cog):
 
     @app_commands.command(name="event_start", description="季節イベントを開始し、全サーバーとDMに通知を送信します。")
     async def event_start(self, interaction: discord.Interaction):
+        if not is_event_admin(interaction.user.id):
+            await interaction.response.send_message("⚠️ このコマンドは管理者専用です。", ephemeral=True)
+            return
         await interaction.response.defer(ephemeral=True)
         embed = discord.Embed(
             title="🌸 季節イベント開催開始！",
@@ -105,11 +109,10 @@ class EventCog(commands.Cog):
 
     @app_commands.command(name="event_end", description="イベントを終了し、すべてを初期化します（管理者限定）")
     async def event_end(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message(
-                "このコマンドは管理者のみ使用可能です。", ephemeral=True)
+        if not is_event_admin(interaction.user.id):
+            await interaction.response.send_message("⚠️ このコマンドは管理者専用です。", ephemeral=True)
             return
-
+            
         self.db.reset_event_votes()
         self.db.export_and_reset_events()
 
