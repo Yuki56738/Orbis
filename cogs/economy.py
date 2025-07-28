@@ -120,7 +120,8 @@ class Economy(commands.Cog):
     async def on_message(self, message: Message):
         if message.author.bot or len(message.content.strip()) < 5:
             return
-
+            
+        company_id = user.get("company_id")
         shared_id = self.get_shared_id(message.author)
         user = await self.ensure_user(shared_id)
 
@@ -154,6 +155,7 @@ class Economy(commands.Cog):
                 income *= 10
             user["balance"] += income
 
+        await add_assets_to_user(conn,company_id,income)
         await economy_api.update_user(shared_id, {
             "activity_score": round(activity, 2),
             "last_active_date": today.isoformat(),
