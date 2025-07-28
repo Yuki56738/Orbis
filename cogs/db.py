@@ -113,10 +113,12 @@ class DBHandler(commands.Cog):
 
     async def disconnect_sgc(self, guild_id: int):
         await self.set_setting(guild_id, "sgc_enabled", "false")
+        await self.delete_setting(guild_id,"sgc_channel_id")
 
     async def is_sgc_connected(self, guild_id: int) -> bool:
-        value = await self.get_setting(guild_id, "sgc_enabled")
-        return value == "true"
+        enabled = await self.get_setting(guild_id, "sgc_enabled")
+        sgc_channel = await self.get_setting(guild_id, "sgc_channel_id")
+        return enabled == "true"
 
     async def get_sgc_channel_id(self, guild_id: int) -> int | None:
         value = await self.get_setting(guild_id, "sgc_channel_id")
