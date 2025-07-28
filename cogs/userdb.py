@@ -2,6 +2,8 @@ import asyncpg
 from discord.ext import commands
 import json
 import datetime
+import os
+import csv
 
 DB_CONFIG = {
     "user": "orbisuser",
@@ -225,11 +227,46 @@ class UserDBHandler(commands.Cog):
         async with self.pool.acquire() as conn:
             await conn.execute(query)
 
-    # イベントデータの削除（初期化）
-    async def clear_event_submissions(self):
-        query = "DELETE FROM global_events"
+    # イベントデータの削除(初期化)
+    async def export_and_reset_events(self):
+        query_select = "SELECT user_id, image_url, comment, votes, see_id FROM global_events"
+        query_delete = "DELETE FROM global_events"
+
         async with self.pool.acquire() as conn:
-            await conn.execute(query)
+            # データ取得
+            rows = await conn.fetch(query_select)
+
+            if not rows:
+                print("[DB] エクスポート対象のイベント投稿が存在しません。")
+                return
+
+            # CSV出力ディレクトリの作成
+            export_dir = "./exports"
+            os.makedirs(export_dir, exist_ok=True)
+
+            # ファイル名生成
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_path = os.path.join(export_dir, f"global_events_{timestamp}.csv")
+
+            # CSVとして書き出し
+            with open(file_path, mode='w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['user_id', 'image_url', 'comment', 'votes', 'see_id'])  # ヘッダー
+
+                for row in rows:
+                    writer.writerow([
+                        row['user_id'],
+                        row['image_url'],
+                        row['comment'],
+                        row['votes'],
+                        row['see_id']
+                    ])
+
+            print(f"[DB] イベント投稿をCSV出力しました: {file_path}")
+
+            # 投稿を初期化
+            await conn.execute(query_delete)
+            print("[DB] global_events テーブルを初期化しました。")
 
     # 次に使えるsee_idを取得（最大値+1）
     async def get_next_see_id(self) -> int:
