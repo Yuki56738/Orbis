@@ -107,14 +107,14 @@ class DBHandler(commands.Cog):
             
     # === SGC（スーパーグローバルチャット）関連 ===
 
-    async def enable_sgc(self, guild_id: int, channel_id: int):
+    async def connect_sgc(self, guild_id: int, channel_id: int):
         await self.set_setting(guild_id, "sgc_enabled", "true")
         await self.set_setting(guild_id, "sgc_channel_id", str(channel_id))
 
-    async def disable_sgc(self, guild_id: int):
+    async def disconnect_sgc(self, guild_id: int):
         await self.set_setting(guild_id, "sgc_enabled", "false")
 
-    async def is_sgc_enabled(self, guild_id: int) -> bool:
+    async def is_sgc_connected(self, guild_id: int) -> bool:
         value = await self.get_setting(guild_id, "sgc_enabled")
         return value == "true"
 
