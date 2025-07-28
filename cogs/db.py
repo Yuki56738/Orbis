@@ -104,6 +104,37 @@ class DBHandler(commands.Cog):
         query = "DELETE FROM pets WHERE guild_id = $1"
         async with self.pool.acquire() as conn:
             await conn.execute(query, guild_id)
+            
+    # === SGC（スーパーグローバルチャット）関連 ===
+
+    async def enable_sgc(self, guild_id: int, channel_id: int):
+        await self.set_setting(guild_id, "sgc_enabled", "true")
+        await self.set_setting(guild_id, "sgc_channel_id", str(channel_id))
+
+    async def disable_sgc(self, guild_id: int):
+        await self.set_setting(guild_id, "sgc_enabled", "false")
+
+    async def is_sgc_enabled(self, guild_id: int) -> bool:
+        value = await self.get_setting(guild_id, "sgc_enabled")
+        return value == "true"
+
+    async def get_sgc_channel_id(self, guild_id: int) -> int | None:
+        value = await self.get_setting(guild_id, "sgc_channel_id")
+        return int(value) if value and value.isdigit() else None
+
+    async def get_all_sgc_channels(self) -> list[tuple[int, int]]:
+        """SGCが有効なすべてのギルドの(guild_id, channel_id)を返す"""
+        query = """
+            SELECT guild_id, value as channel_id
+            FROM settings
+            WHERE key = 'sgc_channel_id'
+              AND guild_id IN (
+                SELECT guild_id FROM settings WHERE key = 'sgc_enabled' AND value = 'true'
+              )
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query)
+            return [(r["guild_id"], int(r["channel_id"])) for r in rows if r["channel_id"].isdigit()]
 
 async def setup(bot):
     await bot.add_cog(DBHandler(bot))
