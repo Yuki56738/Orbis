@@ -51,7 +51,6 @@ class SGCClient(commands.Cog):
             json_channel = self.bot.get_channel(JSON_CHANNEL_ID)
             if json_channel:
                 await json_channel.send(jsondata)
-            await message.add_reaction("✅")
             return
 
         # JSONチャネルのメッセージ受信 → 他のSGC接続チャンネルへ転送
