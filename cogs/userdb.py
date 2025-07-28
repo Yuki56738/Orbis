@@ -145,12 +145,12 @@ class UserDBHandler(commands.Cog):
         """, company_id)
 
     # 資産を加算
-    async def add_assets_to_user(conn, user_id: int, amount: int):
+    async def add_assets_to_user(conn, company_id: int, amount: int):
         await conn.execute("""
             UPDATE company_members
             SET total_assets = total_assets + $1
-            WHERE user_id = $2
-        """, amount, user_id)
+            WHERE company_id = $2
+        """, amount, company_id)
 
 
     # ペット行動回数の取得
