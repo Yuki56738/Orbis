@@ -54,7 +54,7 @@ class UserDBHandler(commands.Cog):
                     image_url TEXT,
                     comment TEXT,
                     votes INT DEFAULT 0,
-                    see_id INT
+                    see_id TEXT
                 );
             """)
 
