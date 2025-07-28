@@ -1,16 +1,17 @@
 from utils.permission import is_event_admin
 import discord
-from discord import app_commands
+from discord import app_commands, Interaction, Embed, ui
 from discord.ext import commands
 import random
 import string
 from utils.event_db import UserDBHandler  # ← これを作成済み前提
 import datetime
+import asyncpg
 
 class EventCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = UserDBHandler()
+        self.db = bot.userdb
 
     def generate_see_id(self):
         while true:
@@ -68,6 +69,117 @@ class EventCog(commands.Cog):
         embed.set_footer(text="Orbis 季節イベント投稿")
 
         await interaction.followup.send(embed=embed)
+
+
+    # ------------------------------
+    # 投稿削除コマンド
+    # ------------------------------
+    @app_commands.command(name="event_delete", description="自分の投稿を削除します")
+    async def event_delete(self, interaction: Interaction):
+        submissions = await self.db.get_user_event_submissions(interaction.user.id)
+
+        if not submissions:
+            return await interaction.response.send_message("あなたの投稿は見つかりませんでした。", ephemeral=True)
+
+        options = [
+            ui.SelectOption(
+                label=sub["title"][:100] if sub["title"] else "(No Title)",
+                description=sub["comment"][:100] if sub["comment"] else "(No Comment)",
+                value=sub["see_id"]
+            )
+            for sub in submissions
+        ]
+
+        class DeleteSelect(ui.View):
+            def __init__(self):
+                super().__init__(timeout=60)
+
+                self.select = ui.Select(placeholder="削除する投稿を選んでください", options=options)
+                self.select.callback = self.select_callback
+                self.add_item(self.select)
+
+            async def select_callback(self, interaction2: Interaction):
+                see_id = self.select.values[0]
+
+                confirm_view = ConfirmDeleteView(see_id)
+                await interaction2.response.send_message(
+                    f"以下の投稿を削除しますか？\n`{see_id}`",
+                    view=confirm_view,
+                    ephemeral=True
+                )
+
+        await interaction.response.send_message("削除する投稿を選んでください：", view=DeleteSelect(), ephemeral=True)
+
+        # --- 削除確認用ビュー ---
+        class ConfirmDeleteView(ui.View):
+            def __init__(self, see_id):
+                super().__init__(timeout=30)
+                self.see_id = see_id
+
+            @ui.button(label="✅ 削除", style=discord.ButtonStyle.danger)
+            async def delete_button(self, interaction2: Interaction, button: ui.Button):
+                await self.db.delete_event_submission(self.see_id)
+                await interaction2.response.edit_message(content="削除しました。", view=None)
+
+            @ui.button(label="❌ キャンセル", style=discord.ButtonStyle.secondary)
+            async def cancel_button(self, interaction2: Interaction, button: ui.Button):
+                await interaction2.response.edit_message(content="キャンセルしました。", view=None)
+
+    # ------------------------------
+    # 投稿編集コマンド
+    # ------------------------------
+    @app_commands.command(name="event_edit", description="自分の投稿を編集します")
+    async def event_edit(self, interaction: Interaction):
+        submissions = await self.db.get_user_event_submissions(interaction.user.id)
+
+        if not submissions:
+            return await interaction.response.send_message("あなたの投稿は見つかりませんでした。", ephemeral=True)
+
+        options = [
+            ui.SelectOption(
+                label=sub["title"][:100] if sub["title"] else "(No Title)",
+                description=sub["comment"][:100] if sub["comment"] else "(No Comment)",
+                value=sub["see_id"]
+            )
+            for sub in submissions
+        ]
+
+        class EditSelect(ui.View):
+            def __init__(self):
+                super().__init__(timeout=60)
+
+                self.select = ui.Select(placeholder="編集する投稿を選んでください", options=options)
+                self.select.callback = self.select_callback
+                self.add_item(self.select)
+
+            async def select_callback(self, interaction2: Interaction):
+                see_id = self.select.values[0]
+                # モーダルで編集画面
+                await interaction2.response.send_modal(EditModal(see_id))
+
+        await interaction.response.send_message("編集する投稿を選んでください：", view=EditSelect(), ephemeral=True)
+
+        # --- 編集用モーダル ---
+        class EditModal(ui.Modal, title="投稿を編集"):
+            def __init__(self, see_id):
+                super().__init__()
+                self.see_id = see_id
+
+                self.title_input = ui.TextInput(label="タイトル", required=True, max_length=100)
+                self.comment_input = ui.TextInput(label="コメント", required=True, style=discord.TextStyle.paragraph, max_length=500)
+
+                self.add_item(self.title_input)
+                self.add_item(self.comment_input)
+
+            async def on_submit(self, interaction2: Interaction):
+                await self.db.edit_event_submission(self.see_id, self.title_input.value, self.comment_input.value)
+
+                embed = Embed(
+                    title="✅ 投稿を更新しました",
+                    description=f"**see_id:** `{self.see_id}`\n**タイトル:** {self.title_input.value}\n**コメント:** {self.comment_input.value}",
+                    color=discord.Color.green()
+                )
+                await interaction2.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="event_vote", description="投稿IDに投票します。")
     @app_commands.describe(see_id="投票する投稿のID（例：seeXXXX）")
