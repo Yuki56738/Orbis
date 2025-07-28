@@ -53,7 +53,7 @@ class EventCog(commands.Cog):
         see_id = self.generate_see_id()
         image_url = image.url
 
-        self.db.submit_entry(user_id=interaction.user.id, image_url=image_url, comment=comment, see_id=see_id)
+        await self.db.add_event_submission(user_id=interaction.user.id, image_url=image_url, comment=comment, see_id=see_id)
 
         embed = discord.Embed(
             title="📷 投稿が完了しました！",
@@ -69,7 +69,7 @@ class EventCog(commands.Cog):
     @app_commands.command(name="event_vote", description="投稿IDに投票します。")
     @app_commands.describe(see_id="投票する投稿のID（例：seeXXXX）")
     async def event_vote(self, interaction: discord.Interaction, see_id: str):
-        success = self.db.vote(see_id)
+        success = await self.db.vote_event_submission(see_id)
         if success:
             embed = discord.Embed(
                 title="🗳️ 投票完了！",
