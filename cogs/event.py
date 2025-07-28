@@ -110,6 +110,7 @@ class EventCog(commands.Cog):
                 "このコマンドは管理者のみ使用可能です。", ephemeral=True)
             return
 
+        self.db.reset_event_votes()
         self.db.export_and_reset_events()
 
         embed = discord.Embed(
