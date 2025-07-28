@@ -53,6 +53,7 @@ class UserDBHandler(commands.Cog):
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS global_events (
                     user_id BIGINT,
+                    title TEXT,
                     image_url TEXT,
                     comment TEXT,
                     votes INT DEFAULT 0,
