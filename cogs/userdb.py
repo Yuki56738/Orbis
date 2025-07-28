@@ -281,6 +281,21 @@ class UserDBHandler(commands.Cog):
         query = "SELECT * FROM global_events WHERE see_id = $1"
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, see_id)
+            
+    async def get_user_event_submissions(self, user_id: int):
+        query = "SELECT see_id, title, comment FROM global_events WHERE user_id = $1"
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(query, user_id)
+
+    async def delete_event_submission(self, see_id: str):
+        query = "DELETE FROM global_events WHERE see_id = $1"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, see_id)
+
+    async def edit_event_submission(self, see_id: str, new_title: str, new_comment: str):
+        query = "UPDATE global_events SET title = $1, comment = $2 WHERE see_id = $3"
+        async with self.pool.acquire() as conn:
+            await conn.execute(query, new_title, new_comment, see_id)
 
 
 async def setup(bot):
