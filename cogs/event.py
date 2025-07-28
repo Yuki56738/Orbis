@@ -228,8 +228,8 @@ class EventCog(commands.Cog):
             await interaction.response.send_message("⚠️ このコマンドは管理者専用です。", ephemeral=True)
             return
             
-        self.db.reset_event_votes()
-        self.db.export_and_reset_events()
+        await self.db.reset_event_votes()
+        await self.db.export_and_reset_events()
 
         embed = discord.Embed(
             title="📛 イベント終了",
