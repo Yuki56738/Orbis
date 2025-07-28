@@ -36,6 +36,14 @@ class UserDBHandler(commands.Cog):
                 );
             """)
             await conn.execute("""
+                CREATE TABLE company_members (
+                    company_id BIGINT NOT NULL,
+                    user_id BIGINT PRIMARY KEY,
+                    role TEXT NOT NULL DEFAULT 'member',
+                    total_assets BIGINT DEFAULT 0
+                );
+            """)
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS pet_reward_stats (
                     guild_id BIGINT PRIMARY KEY,
                     total_pet_actions INTEGER DEFAULT 0
@@ -105,6 +113,45 @@ class UserDBHandler(commands.Cog):
         query = "DELETE FROM user_adventure_states WHERE user_id = $1"
         async with self.pool.acquire() as conn:
             await conn.execute(query, user_id)
+
+    
+    # 企業にユーザーを追加（設立 or 招待）
+    async def add_user_to_company(conn, company_id: int, user_id: int, role: str = 'member'):
+        await conn.execute("""
+            INSERT INTO company_members (company_id, user_id, role)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO NOTHING
+        """, company_id, user_id, role)
+
+    # 企業からユーザーを削除
+    async def remove_user_from_company(conn, user_id: int):
+        await conn.execute("""
+            DELETE FROM company_members
+            WHERE user_id = $1
+        """, user_id)
+
+    # 企業に所属しているか確認
+    async def get_company_by_user(conn, user_id: int):
+        return await conn.fetchrow("""
+            SELECT * FROM company_members
+            WHERE user_id = $1
+        """, user_id)
+
+    # 企業のメンバー一覧を取得
+    async def get_company_members(conn, company_id: int):
+        return await conn.fetch("""
+            SELECT * FROM company_members
+            WHERE company_id = $1
+        """, company_id)
+
+    # 資産を加算
+    async def add_assets_to_user(conn, user_id: int, amount: int):
+        await conn.execute("""
+            UPDATE company_members
+            SET total_assets = total_assets + $1
+            WHERE user_id = $2
+        """, amount, user_id)
+
 
     # ペット行動回数の取得
     async def get_pet_action_count(self, guild_id: int) -> int:
