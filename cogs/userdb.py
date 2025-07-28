@@ -216,10 +216,11 @@ class UserDBHandler(commands.Cog):
                 return await conn.fetch(query)
 
     # 投票を追加
-    async def vote_event_submission(self, see_id: int):
+    async def vote_event_submission(self, see_id: str) -> bool:
         query = "UPDATE global_events SET votes = votes + 1 WHERE see_id = $1"
         async with self.pool.acquire() as conn:
-            await conn.execute(query, see_id)
+            result = await conn.execute(query, see_id)
+            return result[-1] != '0'  # 'UPDATE 1' のように返ってくる
 
     # 投票数のリセット（イベント終了時）
     async def reset_event_votes(self):
