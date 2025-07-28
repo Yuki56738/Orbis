@@ -47,16 +47,39 @@ class Economy(commands.Cog):
         level = user.get("level", 1)
         fortune_effects = await fortune.get_today_fortune_effects(interaction.user.id)
         income_multiplier = fortune_effects.get("income_multiplier", 1.0)
-        income = int(random.randint(int(activity * level * 1.5 * 10), int(activity * level * 2.0 * 10)) * income_multiplier)
 
+        base_income = int(random.randint(int(activity * level * 1.5 * 10), int(activity * level * 2.0 * 10)) * income_multiplier)
 
+        # --- 企業ボーナス計算 ---
+        company_bonus = 0
+        company_id = user.get("company_id")  # 企業に所属しているなら company_id が存在するはず
+
+        if company_id:
+            # データベースから企業の total_assets を取得
+            query = "SELECT total_assets FROM companies WHERE id = $1"
+            async with self.db.pool.acquire() as conn:
+                row = await conn.fetchrow(query, company_id)
+                if row:
+                    total_assets = row["total_assets"]
+                    # 企業ボーナス：企業総資産の 0.25〜0.75%
+                    bonus_rate = random.uniform(0.0025, 0.0075)
+                    company_bonus = int(total_assets * bonus_rate)
+
+        total_income = base_income + company_bonus
+        # 会社の総資産アップデート
+        await add_assets_to_user(conn,company_id,base_income)
+        # ユーザーの資産を更新
         await economy_api.update_user(shared_id, {
-            "balance": user["balance"] + income,
+            "balance": user["balance"] + total_income,
             "last_work_time": now.isoformat()
         })
 
-        await interaction.response.send_message(f"💼 お疲れさまです！{income} 円を獲得しました。")
+        # ログ出力
+        msg = f"💼 お疲れさまです！{base_income} 円を獲得しました。"
+        if company_bonus > 0:
+            msg += f"\n🏢 企業ボーナスとして {company_bonus} 円が追加されました！"
 
+        await interaction.response.send_message(msg)
     @app_commands.command(name="pay", description="他のユーザーにお金を送ります。")
     @app_commands.describe(target="送金相手", amount="送金金額")
     async def pay(self, interaction: Interaction, target: Member, amount: int):
