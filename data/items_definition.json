@@ -4,7 +4,7 @@
     "description": "ログインボーナスの獲得量を強化します。",
     "price": 100000,
     "max_own": 3,
-    "weekly_limit": 5,
+    "weekly_limit": 500000,
     "daily_limit": null
   },
   "risk_charm": {
@@ -13,7 +13,7 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 32
+    "daily_limit": 320000
   },
   "insurance_card": {
     "name": "インシュランス・カード",
@@ -21,7 +21,7 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 32
+    "daily_limit": 320000
   },
   "poker_chip": {
     "name": "幸運のポーカーチップ",
@@ -29,7 +29,7 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 32
+    "daily_limit": 320000
   },
   "chinchiro_cup": {
     "name": "イカサマの壺",
@@ -37,6 +37,6 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 32
+    "daily_limit": 320000
   }
 }
