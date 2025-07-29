@@ -3,12 +3,15 @@ import datetime
 from discord.ext import commands
 from discord import app_commands, Interaction, Member, Message
 import discord
+
 from utils import fortune
 from utils import economy_api
+from utils import userdb  # ← company_members テーブル操作用
 
 class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.db = bot.db  # ← BotにDB Poolがある前提
 
     def get_shared_id(self, user: discord.User):
         return str(user.id)
@@ -52,34 +55,30 @@ class Economy(commands.Cog):
 
         # --- 企業ボーナス計算 ---
         company_bonus = 0
-        company_id = user.get("company_id")  # 企業に所属しているなら company_id が存在するはず
+        company_id = user.get("company_id")
 
-        if company_id:
-            # データベースから企業の total_assets を取得
-            query = "SELECT total_assets FROM companies WHERE id = $1"
-            async with self.db.pool.acquire() as conn:
-                row = await conn.fetchrow(query, company_id)
+        async with self.db.pool.acquire() as conn:
+            if company_id:
+                row = await conn.fetchrow("SELECT total_assets FROM company_members WHERE company_id = $1", int(company_id))
                 if row:
                     total_assets = row["total_assets"]
-                    # 企業ボーナス：企業総資産の 0.25〜0.75%
                     bonus_rate = random.uniform(0.0025, 0.0075)
                     company_bonus = int(total_assets * bonus_rate)
+                await userdb.add_assets_to_user(conn, int(company_id), base_income)
 
         total_income = base_income + company_bonus
-        # 会社の総資産アップデート
-        await add_assets_to_user(conn,company_id,base_income)
-        # ユーザーの資産を更新
+
         await economy_api.update_user(shared_id, {
             "balance": user["balance"] + total_income,
             "last_work_time": now.isoformat()
         })
 
-        # ログ出力
         msg = f"💼 お疲れさまです！{base_income} 円を獲得しました。"
         if company_bonus > 0:
             msg += f"\n🏢 企業ボーナスとして {company_bonus} 円が追加されました！"
 
         await interaction.response.send_message(msg)
+
     @app_commands.command(name="pay", description="他のユーザーにお金を送ります。")
     @app_commands.describe(target="送金相手", amount="送金金額")
     async def pay(self, interaction: Interaction, target: Member, amount: int):
@@ -110,7 +109,6 @@ class Economy(commands.Cog):
 
         shared_id = self.get_shared_id(user)
         await self.ensure_user(shared_id)
-
         await economy_api.update_user(shared_id, {"balance": amount})
         await interaction.response.send_message(
             f"✅ {user.mention} の所持金を {amount} 円に設定しました。"
@@ -120,8 +118,7 @@ class Economy(commands.Cog):
     async def on_message(self, message: Message):
         if message.author.bot or len(message.content.strip()) < 5:
             return
-            
-        company_id = user.get("company_id")
+
         shared_id = self.get_shared_id(message.author)
         user = await self.ensure_user(shared_id)
 
@@ -138,7 +135,6 @@ class Economy(commands.Cog):
 
         activity += round(random.uniform(0.5, 1.0), 2)
 
-        # レベル再計算
         balance = user.get("balance", 0)
         total = balance + activity
         level = 1
@@ -148,29 +144,33 @@ class Economy(commands.Cog):
             threshold += increment
             increment += 150
 
-        # メッセージ報酬
+        income = 0
         if random.randint(1, 10) <= 3:
             income = int(activity * level * 10)
             if reset or not last_date_str:
                 income *= 10
             user["balance"] += income
 
-        await add_assets_to_user(conn,company_id,income)
+        company_id = user.get("company_id")
+
+        async with self.db.pool.acquire() as conn:
+            if income > 0 and company_id:
+                await userdb.add_assets_to_user(conn, int(company_id), income)
+
         await economy_api.update_user(shared_id, {
             "activity_score": round(activity, 2),
             "last_active_date": today.isoformat(),
             "balance": user["balance"],
             "level": level
         })
+
     @app_commands.command(name="rank", description="ユーザーのレベルランキングを表示します。")
     @app_commands.describe(page="表示するページ番号（1ページ30人）")
     async def rank(self, interaction: Interaction, page: int = 1):
-        # 全ユーザーデータ取得（economy_api側にall_users()がある前提）
         users = await economy_api.get_all_users()
         if not users:
             return await interaction.response.send_message("📉 ランキングデータが見つかりません。")
 
-        # レベルでソート（降順）し、順位付きで整形
         users.sort(key=lambda x: x.get("level", 1), reverse=True)
         total_pages = (len(users) + 29) // 30
         page = max(1, min(page, total_pages))
@@ -185,7 +185,7 @@ class Economy(commands.Cog):
         )
 
         for i, user in enumerate(ranking_slice, start=start + 1):
-            mention = f"<@{user['shared_id']}>"  # DiscordのユーザーID形式にして表示
+            mention = f"<@{user['shared_id']}>"
             level = user.get("level", 1)
             embed.add_field(name=f"{i}位", value=f"{mention}：Lv.{level}", inline=False)
 
