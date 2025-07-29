@@ -4,7 +4,7 @@
     "description": "ログインボーナスの獲得量を強化します。",
     "price": 100000,
     "max_own": 3,
-    "weekly_limit": 500000,
+    "weekly_limit": 50000,
     "daily_limit": null
   },
   "risk_charm": {
@@ -13,7 +13,7 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 320000
+    "daily_limit": 32000
   },
   "insurance_card": {
     "name": "インシュランス・カード",
@@ -21,7 +21,7 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 320000
+    "daily_limit": 32000
   },
   "poker_chip": {
     "name": "幸運のポーカーチップ",
@@ -29,7 +29,7 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 320000
+    "daily_limit": 32000
   },
   "chinchiro_cup": {
     "name": "イカサマの壺",
@@ -37,6 +37,62 @@
     "price": 50000,
     "max_own": 64,
     "weekly_limit": null,
-    "daily_limit": 320000
-  }
+    "daily_limit": 32000
+  },
+  "coffee":{
+    "name":"カフェインましましコーヒー",
+    "description":"カフェインましましのコーヒーです。碾きたてで美味い",
+    "price":3000,
+    "max_own":64,
+    "weekly_limit":null,
+    "daily_limit:"10000"
+  },
+    "baseball_bat":{
+      "name":"野球バット“,
+      "description":"妖怪バットの改良版としてできたらしい。”,
+      "price":3000,
+      "max_own":64,
+      "weekly_limit":100,
+      "daily_limit":null
+    },
+    "stone":{
+      "name":"石材",
+      "description":"大きな岩を加工しやすくしたもの。",
+      "price":6000,
+      "max_own":64,
+      "weekly_limut":1000,
+      "daily_limit":null
+    },
+    "fight_potion":{
+      "name":“力のポーション“,
+      "description":"力による攻撃力が上がる",
+      "price":3500,
+      "max_own":32,
+      "weekly_limit":null,
+      "daily_limit":1000
+    },
+    "speed_potion":{
+      "name":"俊敏のポーション",
+      "description":"速さが増幅する",
+      "price":3500,
+      "max_own":32,
+      "weekly_limit":null,
+      "daily_limit":1000
+    },
+    "hpboost_potion:{
+      "name":"回復のポーション",
+      "description":"キズを癒すポーション",
+      "price":3500,
+      "max_own":32,
+      "weekly_limit":null,
+      "daily_limit":1000
+    },
+    "wood":{
+      "name":"木材",
+      "description":"いい感じの木材。何かに使えそう",
+      "price":1500,
+      "max_own":64,
+      "weekly_limit":null,
+      "daily_limit":100000
+    }
 }
