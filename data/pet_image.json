@@ -1,17 +1,17 @@
 {
     "cat":{
-        "pet_create":"https://example.com/cat_create.png",
-        "feed":"https://example.com/cat_feed_adult.png",
-        "gift":"https://example.com/cat_gift_adult.png",
-        "birthday":"https://example.com/cat_birthday_adult.png",
-        "affection":"https://example.com/cat_affection_adult.png",
+        "pet_create":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSquo37Yh0io_pTVehwLNDUXTQD9ISvbwFg-1wLs3vIjjU7AAhlBMwBma37&s=10",
+        "feed":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQFZN5lF3HSb-DwyFyGTBhOh0OQ5TRF5DbgARw9pkIDiLaqkLeK1JPWJ2pt&s=10",
+        "gift":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ8XxjU3C4BBMdB93wJfrbYnzQuD7qlyYVOxjTPg1xQFSHN7L7tmG1sufA&s=10",
+        "birthday":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQag3eJ9hpeWb6S9ioRUCma811IEsRvBf7hHQMC_OANOJdIKOeCvLDebc4L&s=10",
+        "affection":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQKUOJXhNghkzF5Q7C6Ad80PGh7U0mK9Wj4xR93elA_qAti2tMsnD1iyIc&s=10",
         "emote":{
-            "happy":"https://example.com/cat_happy_adult.png",
-            "sad":"https://example.com/cat_sad_adult.png",
-            "angry":"https://example.com/cat_angry_adult.png",
-            "natural":"https://example.com/cat_natural_adult.png"
+            "happy":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTrsohziIMB-p_VnqCFN1xk7THUH6OdNWGnJJ2_nOiYSHHlRB7_6speX1A&s=10",
+            "sad":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTRAOynkv_eaWRZiTpRvIpbjD123cX29cE6jCoYFJdQzkKJFYbk-h3A207V&s=10",
+            "angry":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSHwF5cZSw6Q2ZWgxdkyXLdlSGKD9Q00TqOvWM7qRlPDk-QrwKdKdYavTQv&s=10",
+            "natural":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRIyQya_lbyI9J8KMhLywH75alddAs71ck3hCeItyEtWeHvO9Fh6LWKnzzv&s=10"
         },
-        "reward":"https://example.com/cat_reward_adult.png"
+        "reward":"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIj_cL5714SUue8WTN6A5b80bMTTa7CiJA1RGOK7M0h8i3ny0EF9mjECo9&s=10q=tbn:ANd9GcRIyQya_lbyI9J8KMhLywH75alddAs71ck3hCeItyEtWeHvO9Fh6LWKnzzv&s=10"
     },
     "dog":{
         "pet_create":"https://example.com/dog_create.png",
