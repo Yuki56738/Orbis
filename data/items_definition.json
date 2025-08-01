@@ -45,11 +45,11 @@
     "price":3000,
     "max_own":64,
     "weekly_limit":null,
-    "daily_limit:"10000"
+    "daily_limit:"10000
   },
     "baseball_bat":{
       "name":"野球バット“,
-      "description":"妖怪バットの改良版としてできたらしい。”,
+      "description":"妖怪バットの改良版としてできたらしい。",
       "price":3000,
       "max_own":64,
       "weekly_limit":100,
@@ -64,7 +64,7 @@
       "daily_limit":null
     },
     "fight_potion":{
-      "name":“力のポーション“,
+      "name":"力のポーション",
       "description":"力による攻撃力が上がる",
       "price":3500,
       "max_own":32,
