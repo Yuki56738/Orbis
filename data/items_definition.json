@@ -48,7 +48,7 @@
     "daily_limit:"10000
   },
     "baseball_bat":{
-      "name":"野球バット“,
+      "name":"野球バット",
       "description":"妖怪バットの改良版としてできたらしい。",
       "price":3000,
       "max_own":64,
@@ -79,7 +79,7 @@
       "weekly_limit":null,
       "daily_limit":1000
     },
-    "hpboost_potion:{
+    "hpboost_potion":{
       "name":"回復のポーション",
       "description":"キズを癒すポーション",
       "price":3500,
