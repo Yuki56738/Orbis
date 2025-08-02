@@ -12,6 +12,10 @@
             "text":"あ、そうだ！最近新しいお菓子を作ったんだ！食べてみる？",
             "image":"https://example.com/images/yuzuha_msg3.png"
         },
+        "msg4":{
+            "text:"ちょっとー！待ってってばー！",
+            "image":"https://example.com/images/yuzuha_msg4.png"
+        },
         "responce":{
             "happy":{
                 "text":"わーい！嬉しいなぁ！一緒に遊ぶの楽しみ！",
