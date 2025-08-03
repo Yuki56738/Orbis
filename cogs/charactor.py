@@ -4,14 +4,16 @@ import random
 import json
 import os
 
-from utils.userdb import UserDBHandler
+from cogs.userdb import UserDBHandler
+
+# from utils.userdb import UserDBHandler
 
 CHARACTER_JSON_PATH = "data/charactor.json"
 
 class CharacterCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = UserDBHandler()
+        self.db = UserDBHandler(bot)
         self.characters = self.load_characters()
 
     def load_characters(self):

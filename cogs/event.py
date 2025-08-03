@@ -4,7 +4,7 @@ from discord import app_commands, Interaction, Embed, ui
 from discord.ext import commands
 import random
 import string
-from utils.event_db import UserDBHandler  # ← これを作成済み前提
+# from utils.event_db import UserDBHandler  # ← これを作成済み前提
 import datetime
 import asyncpg
 
