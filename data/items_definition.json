@@ -45,7 +45,7 @@
     "price":3000,
     "max_own":64,
     "weekly_limit":null,
-    "daily_limit:"10000
+    "daily_limit":"10000"
   },
     "baseball_bat":{
       "name":"野球バット",
